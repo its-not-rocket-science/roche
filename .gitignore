@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Data and experiment outputs
+data/
+outputs/
+results/
+figures/generated/
+*.npz
+*.npy
+*.csv
+
+# LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.pdf
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,93 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\title{Contour Certificates for Stable Learned Dynamics: A Rouch\'e--Perturbation Framework for State-Space Models}
+\author{Author Names Omitted}
+\date{}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Learned state-space models rely on stable transition dynamics for long-horizon prediction and trainability. We develop contour-based sufficient certificates for Schur stability of learned transition matrices using scalar and matrix-valued Rouch\'e-type perturbation arguments. The resulting determinant and resolvent certificates provide computable post-hoc stability tests around known-stable reference systems. We also derive deterministic finite-grid verification conditions and study reference-selection algorithms that improve certificate margins. Synthetic experiments characterize the conservatism, numerical conditioning, and scalability of the certificates across normal, non-normal, near-defective, and structured state-space matrices.
+\end{abstract}
+
+\section{Introduction}
+
+State-space sequence models require stable transition operators to avoid exploding hidden states and unreliable long-horizon dynamics. For a discrete-time transition matrix $A$, Schur stability is equivalent to $\rho(A)<1$. This paper does not replace that condition. Instead, it asks whether Rouch\'e-type perturbation tools yield useful sufficient certificates around known-stable reference dynamics.
+
+\section{Background}
+
+\subsection{Schur stability}
+
+A matrix $A\in\mathbb C^{n\times n}$ is Schur stable if every eigenvalue lies strictly inside the unit disk.
+
+\subsection{Rouch\'e's theorem}
+
+Classical Rouch\'e's theorem states that if $f$ and $g$ are holomorphic inside and on a simple closed contour $C$, and $|f-g|<|f|$ on $C$, then $f$ and $g$ have the same number of zeros inside $C$, counted with multiplicity.
+
+\section{Scalar determinant certificate}
+
+Let
+\[
+  p_A(z)=\det(zI-A),\qquad p_0(z)=\det(zI-A_0).
+\]
+
+\begin{theorem}[Scalar contour certificate]
+Suppose $A_0$ is Schur stable. If
+\[
+  |\det(zI-A_0)|>|\det(zI-A)-\det(zI-A_0)|
+\]
+for every $|z|=1$, then $A$ is Schur stable.
+\end{theorem}
+
+\begin{proof}
+Apply Rouch\'e's theorem to $p_0$ and $p_A$ on the unit circle. Since $p_0$ has $n$ zeros inside the unit disk, so does $p_A$. Hence all eigenvalues of $A$ lie inside the unit disk.
+\end{proof}
+
+\section{Matrix-valued resolvent certificate}
+
+Let $F_0(z)=zI-A_0$ and $F(z)=zI-A$.
+
+\begin{theorem}[Resolvent contour certificate]
+Suppose $A_0$ is Schur stable and
+\[
+  \sup_{|z|=1}\left\|(zI-A_0)^{-1}(A_0-A)\right\|<1.
+\]
+Then $A$ is Schur stable.
+\end{theorem}
+
+\section{Finite-grid verification}
+
+Let $m(\theta)$ denote a contour margin. If $m$ is $L$-Lipschitz and is evaluated on $N$ equispaced points, then
+\[
+  \min_k m(\theta_k)>\frac{\pi L}{N}
+\]
+certifies positivity on the whole circle.
+
+\section{Reference selection}
+
+We formulate reference selection as a max-min optimisation problem over stable reference families.
+
+\section{Experiments}
+
+We compare determinant and resolvent certificates across normal, non-normal, near-defective, and structured SSM-like matrices.
+
+\section{Limitations}
+
+The certificates are sufficient but not necessary. Determinant margins are ill-conditioned at large dimension. Resolvent checks require linear solves along a contour.
+
+\section{Conclusion}
+
+Rouch\'e-type perturbation arguments provide rigorous, conservative, and interpretable stability certificates for learned dynamics. Their usefulness depends on reference choice, matrix structure, and numerical conditioning.
+
+\end{document}
