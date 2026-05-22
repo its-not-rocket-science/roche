@@ -48,10 +48,13 @@ reference-selection algorithms that improve certificate margins over naive
 scalar baselines.  Synthetic experiments characterise the conservatism,
 numerical conditioning, and wall-clock scalability of the certificates across
 normal, non-normal, near-defective, block-diagonal, and structured
-state-space transition matrices.  Our central finding is that resolvent
-certificates outperform determinant certificates across all matrix families,
-and that reference selection is the single largest lever for reducing false
-negatives among stable matrices.
+state-space transition matrices.  Empirically, the two certificates achieve similar (low) certification
+rates under scalar and random-diagonal references; on dense normal and
+non-normal families the determinant certifies marginally more instances, while
+the resolvent is superior on diagonal-structured matrices and is numerically
+better conditioned at large $n$.  Reference selection is the single largest
+lever for reducing false negatives: diagonal-shrunk references achieve
+100\,\% certification where random-diagonal search achieves $\leq 36$\,\%.
 \end{abstract}
 
 %% ============================================================
@@ -368,10 +371,15 @@ Sample random diagonal stable matrices $A_0 = \mathrm{diag}(r_i e^{i\phi_i})$
 with $r_i \sim \mathrm{Uniform}(0, 0.95)$ and $\phi_i$ random, evaluate the
 margin, keep the best.  Inexpensive and often effective for diagonal-structured $A$.
 
-\paragraph{Future directions.}
+\paragraph{Gradient-based optimisation (Paper~2).}
 Gradient-based optimisation of $\min_\theta m_{\mathrm{res}}(A, A_0, \theta)$
-over the Lie group of stable matrices is a natural extension left to future
-work (see also Paper~2 in this series).
+with respect to diagonal $A_0$ is studied in Paper~2 of this series.
+Adam-based reference optimisation (300 steps, softmin surrogate) achieves
+100\,\% post-hoc certification for diagonal and trained-SSM families, up from
+$\leq 36$\,\% with random search, confirming reference selection as the
+dominant bottleneck.  Non-normal and Jordan families remain uncertifiable with
+any diagonal reference, motivating the contour-barrier training regulariser
+also introduced in Paper~2.
 
 %% ============================================================
 \section{Experiments}
@@ -382,8 +390,9 @@ work (see also Paper~2 in this series).
 All experiments use 64-bit complex arithmetic with the NumPy/SciPy stack.
 Margins are evaluated on equispaced grids of $N = 512$ points unless stated
 otherwise.  The resolvent certificate uses the matrix 2-norm.  We report both
-the sampled-only verdict (positive minimum margin) and the rigorous verdict
-(Theorem~\ref{thm:grid} with the numerical Lipschitz bound).
+the sampled-only verdict (positive minimum margin) and the grid-verified
+verdict (Theorem~\ref{thm:grid} with a numerically estimated Lipschitz bound
+$L$; note that a fully validated certificate requires an analytic bound on $L$).
 
 Unless otherwise noted, experiments use $n = 8$ (state dimension) and $M = 200$
 random matrix instances per family.  Reference selection uses a random diagonal
@@ -456,26 +465,26 @@ Key findings:
 \subsection{Experiment 2: Discretisation correctness}
 
 We verify Theorem~\ref{thm:grid} empirically.  For each test matrix we record
-the sampled certificate, the rigorous certificate, and the ground-truth (dense
+the sampled certificate, the grid-verified certificate, and the ground-truth (dense
 $N = 4096$ grid).  We check:
-(a) no false positives for the rigorous certificate (by Theorem~\ref{thm:grid},
+(a) no false positives for the grid-verified certificate (by Theorem~\ref{thm:grid},
     none should occur);
-(b) convergence of the rigorous certificate as $N$ grows;
-(c) conservatism of the rigorous vs.\ sampled-only diagnostic at small $N$.
+(b) convergence of the grid-verified certificate as $N$ grows;
+(c) conservatism of the grid-verified vs.\ sampled-only diagnostic at small $N$.
 
 \begin{table}[t]
 \centering
 \caption{Experiment~2: Discretisation correctness (Theorem~\ref{thm:grid}).
-For diagonal test cases the rigorous certificate becomes reliable above a
+For diagonal test cases the grid-verified certificate becomes reliable above a
 threshold grid size $N$ that grows with proximity to the unit circle.
-No false positives occur for either the rigorous or sampled certificate.
+No false positives occur for either the grid-verified or sampled certificate.
 The two non-diagonal cases (dense normal, Jordan) use a scalar reference
 that is too conservative to certify even on the dense ground-truth grid;
 the certificate correctly withholds certification, confirming that
 conservatism there arises from the reference choice, not the grid
 approximation.
 ($\checkmark$: certifiable with $N=4096$; $\times$: not certifiable;
-``Min $N$ (rig)'': smallest $N$ at which the rigorous certificate passes.)}
+``Min $N$ (rig)'': smallest $N$ at which the grid-verified certificate passes.)}
 \label{tab:discretisation}
 \begin{tabular}{lrcccc}
 \toprule
@@ -497,9 +506,10 @@ Jordan, $\varrho=0.95$ (scalar ref) & 0.95 & $\times$ & --- & 0 & 0 \\
 \includegraphics[width=0.48\linewidth]{../../results/exp2/disc_jordan_near_r095_scalar.png}
 \caption{Experiment~2: Discretisation convergence for (left) diagonal
 $\varrho=0.95$ and (right) Jordan-like $\varrho=0.95$ with scalar reference.
-Each panel shows the sampled minimum margin $\hat{m}_N$, the rigorous
-threshold $\pi L / N$, and the certification decisions as a function of grid
-size $N$.  The rigorous certificate is conservative at small $N$ but converges
+Each panel shows the sampled minimum margin $\hat{m}_N$, the grid-verified
+threshold $\pi L / N$ (numerically estimated $L$), and the certification
+decisions as a function of grid size $N$.  The grid-verified certificate is
+conservative at small $N$ but converges
 as predicted by Theorem~\ref{thm:grid}; no false positives occur.}
 \label{fig:discretisation}
 \end{figure}
@@ -520,7 +530,7 @@ are Schur stable.  The scalar reference ($A_0 = 0.5\,I$) fails to certify in
 every case.  The shrunken-diagonal reference (eigenvalues scaled to $0.9\rho$)
 certifies by both determinant and resolvent in all cases.  The random-search
 reference (100 candidates) certifies only the simplest model (AR(2), short
-memory).  The rigorous finite-grid certificate at $N=512$ passes only when
+memory).  The grid-verified certificate (numerical $L$) at $N=512$ passes only when
 the Lipschitz criterion $\pi L/N < \hat{m}_N$ is satisfied; the harder
 long-memory models require larger $N$.
 (det/res: determinant / resolvent certificate;
@@ -532,7 +542,7 @@ Task & $\varrho$ &
   Scalar (det/res) &
   Diag-shrunk (det/res) &
   Best-search (res) &
-  Rigorous ($N=512$) \\
+  Grid-verified ($N=512$, num.\ $L$) \\
 \midrule
 AR(4) long-memory    & 0.59 & $\times$/$\times$ & $\checkmark$/$\checkmark$ & $\times$ & $\times$ \\
 AR(4) long-memory hard & 0.78 & $\times$/$\times$ & $\checkmark$/$\checkmark$ & $\times$ & $\times$ \\
@@ -649,7 +659,7 @@ bounds are possible but unnecessary for the verification purpose here.
   \item \emph{Non-normal sensitivity.}  For highly non-normal $A_0$, the
     resolvent norm $\kappa = \sup_{|z|=1}\norm{(zI-A_0)^{-1}}$ can be orders
     of magnitude larger than $1/(1-\varrho(A_0))$, inflating the Lipschitz
-    bound and requiring very fine grids for rigorous certification.
+    bound and requiring very fine grids for validated certification.
   \item \emph{Determinant ill-conditioning.}  For $n \geq 20$, $|p_0(z)|$
     can approach double-precision overflow or underflow, making the
     determinant certificate unreliable without log-determinant stabilisation.
@@ -674,8 +684,13 @@ We have developed and analysed two Rouch\'e-type contour certificates for
 Schur stability of learned state-space transition matrices.  The resolvent
 certificate is the practically preferred form: it is numerically stable for
 moderate dimensions, connects cleanly to the stability radius and small-gain
-framework, admits a simple interpretation for diagonal SSMs, and is
-significantly less conservative than the determinant certificate.
+framework, and admits a simple interpretation for diagonal SSMs.  Empirically,
+the two certificates achieve comparable certification rates under scalar and
+random-diagonal references; the determinant certifies marginally more instances
+on dense normal and non-normal families, while the resolvent outperforms on
+diagonal-structured matrices.  The resolvent's theoretical advantage---avoiding
+polynomial ill-conditioning at large $n$---becomes decisive as state dimension
+grows beyond $n \approx 64$.
 
 The deterministic finite-grid theorem converts sampled margin checks into
 mathematical certificates under a Lipschitz condition that can be estimated
