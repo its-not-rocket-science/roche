@@ -42,16 +42,20 @@ false-negative rates when paired with naive scalar or random-search
 reference matrices.  This paper addresses the core bottleneck directly:
 we develop a gradient-based algorithm for optimising the diagonal
 reference matrix $A_0$ jointly with the Rouch\'e margin, achieving
-substantially tighter certificates across all matrix families tested.
-We then embed the optimised reference into three families of
-training-time stability regularisers---spectral penalty, Lyapunov
-per-mode penalty, and a differentiable contour barrier---and compare
-them empirically on autoregressive prediction tasks of varying
-difficulty.  The contour barrier, uniquely informed by the certificate
-geometry, achieves higher post-hoc certification rates without
-sacrificing task performance on easy-to-moderate tasks, and degrades
-gracefully on hard near-boundary cases where the certificate is
-inherently conservative.
+100\% post-hoc certification on diagonal and trained-SSM matrix families
+(up from $\leq 36\%$ with random search).  Diagonal references remain
+insufficient for non-normal and Jordan-near-boundary matrices regardless
+of optimisation quality.  We then embed the optimised reference into
+three families of training-time stability regularisers---spectral
+penalty, Lyapunov per-mode penalty, and a differentiable contour
+barrier---and compare them on autoregressive prediction tasks.  All
+three regularisers achieve equivalent 100\% post-hoc certification; they
+differ in the task-loss--spectral-radius trade-off: the Lyapunov penalty
+incurs up to 24\% task-loss overhead by over-suppressing near-boundary
+modes, while the spectral and contour regularisers keep overhead below
+8\%.  The contour barrier uniquely preserves the spectral radius
+($\varrho \approx 0.68$ vs $0.46$--$0.50$ for spectral/Lyapunov),
+indicating it does not penalise stable modes beyond the margin threshold.
 \end{abstract}
 
 %% ============================================================
@@ -331,16 +335,18 @@ bar heights uniform).}
 
 Key findings: all four regularisation regimes achieve 100\% post-hoc
 certification across all tasks, because diagonal SSMs trained on
-stable AR processes naturally remain stable and the eig-shrunk
-reference suffices.  The contour barrier provides the best task-loss
-preservation (closest to the unregularised baseline) while still
-improving the resolvent margin from $+0.61$--$+0.73$ to $+0.82$.
-The Lyapunov penalty is most aggressive: it drives $\varrho$ to
-$\approx 0.46$ (vs.\ $0.76$--$0.84$ unregularised), at the cost of a
-$24\%$ task-loss increase on the long-memory AR(4) task ($3.10$ vs.\
-$2.51 \times 10^{-3}$), where long-range modes near the unit circle
-are penalised away.  Spectral penalty occupies a middle ground,
-halving $\varrho$ with $\leq 6\%$ task-loss overhead.
+stable AR processes naturally remain stable and the eig-shrunk reference
+suffices.  The regularisers differ in their spectral-radius--task-loss
+trade-off.  The Lyapunov penalty is most aggressive: it drives $\varrho$
+to $\approx 0.46$ at the cost of a $24\%$ task-loss increase on the
+long-memory AR(4) task ($3.10$ vs.\ $2.51\times10^{-3}$).  The spectral
+penalty achieves the lowest task loss among the three regularisers (e.g.\
+$2.53$ vs.\ $2.54\times10^{-3}$ for contour on AR(4) hard) while halving
+$\varrho$.  The contour barrier's distinctive property is $\varrho$
+preservation ($\approx 0.68$ vs.\ $0.46$--$0.50$ for spectral/Lyapunov):
+it does not suppress stable modes beyond the margin threshold $\tau$,
+at the cost of a lower resolvent margin ($+0.82$) than spectral ($+0.90$--$+0.91$)
+or Lyapunov ($+0.92$).
 
 %% ============================================================
 \section{Results}
@@ -356,10 +362,12 @@ $-1.86$ (scalar) to $-0.97$; nonnormal stable from $-11.07$ to
 $-4.98$.
 
 Regulariser comparison (Experiment~2) shows all methods achieve 100\%
-post-hoc certification, with the contour barrier best preserving task
-performance ($\leq 8\%$ overhead) and the Lyapunov penalty incurring up
-to 24\% task-loss increase on long-memory tasks due to over-suppression
-of near-boundary modes.
+post-hoc certification.  The spectral penalty achieves the lowest task
+loss among regularised methods ($\leq 6\%$ overhead), the Lyapunov penalty
+incurs up to 24\% overhead but achieves the highest resolvent margin
+($+0.92$), and the contour barrier provides the best spectral-radius
+preservation ($\varrho \approx 0.68$) by not penalising stable modes beyond
+the certificate threshold.
 
 %% ============================================================
 \section{Discussion}
@@ -375,13 +383,14 @@ regardless of optimisation method; structured non-diagonal references
 
 \paragraph{Contour barrier vs spectral/Lyapunov.}
 All three regularisers achieve 100\% certification on the diagonal SSM
-tasks tested, matching the unregularised baseline.  The contour barrier
-provides the best task-loss--margin trade-off: $\leq 8\%$ task-loss
-overhead vs.\ $\leq 24\%$ for Lyapunov on long-memory tasks.  The
-advantage of the contour barrier over spectral penalty is its
-certificate-geometry awareness: it does not penalise stable modes
-beyond the margin threshold $\tau$, preserving the long-range dynamics
-needed for hard AR tasks.
+tasks tested, matching the unregularised baseline.  The spectral penalty
+achieves the lowest task-loss overhead ($\leq 6\%$) and the highest
+resolvent margin among easy-to-implement methods.  The contour barrier's
+distinctive advantage is $\varrho$ preservation: by firing only when the
+resolvent margin falls below $\tau$, it avoids penalising stable modes
+that are well within the certificate, preserving $\varrho \approx 0.68$
+vs.\ $0.46$--$0.50$ for spectral/Lyapunov.  This matters for long-memory
+AR tasks where near-boundary modes carry useful predictive signal.
 
 \paragraph{Limitations.}
 The gradient-optimised reference is computed on the \emph{initial}
