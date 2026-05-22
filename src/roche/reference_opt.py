@@ -31,23 +31,34 @@ def _unit_circle(K: int) -> torch.Tensor:
 
 
 def _resolvent_margins_torch(
-    a: torch.Tensor,   # (n,) complex — diagonal entries of A
+    a: torch.Tensor,   # (n,n) or (n,) complex — full matrix or diagonal entries of A
     d0: torch.Tensor,  # (n,) complex — diagonal entries of A0
     points: torch.Tensor,  # (K,) complex
 ) -> torch.Tensor:
-    """Resolvent margins for diagonal A0, general diagonal A.
+    """Resolvent margins for diagonal A0 = diag(d0), general A.
 
     Returns shape (K,) float64.
 
-    For diagonal A0: (zI-A0)^{-1}(A0-A) has entries (d0_i - a_i)/(z - d0_i).
-    Operator 2-norm of a diagonal matrix = max |entry|.
+    Fast path (A diagonal): op-norm = max_i |(d0_i-a_i)/(z-d0_i)|, O(Kn).
+    General path (A non-diagonal): row-scale (A0-A) by 1/(z-d0_i), SVD, O(Kn^2).
     """
-    # (K, n): scale[k, i] = (d0_i - a_i) / (z_k - d0_i)
-    diff = d0 - a                              # (n,) complex
-    denom = points[:, None] - d0[None, :]      # (K, n) complex
-    vals = diff[None, :] / denom               # (K, n) complex
-    op_norm = torch.max(torch.abs(vals), dim=1).values  # (K,)
-    return 1.0 - op_norm                       # (K,) real (autograd-able)
+    denom = points[:, None] - d0[None, :]    # (K, n) complex
+
+    if a.ndim == 1:
+        # Diagonal A fast path: O(Kn), no SVD
+        diff = d0 - a                        # (n,)
+        vals = diff[None, :] / denom         # (K, n)
+        op_norm = torch.max(torch.abs(vals), dim=1).values  # (K,)
+    else:
+        # General A: (zI-A0)^{-1}(A0-A) = diag(1/(z-d0_i)) @ (A0-A)
+        # Row i of result scaled by 1/(z-d0_i); 2-norm via SVD
+        perturbation = torch.diag(d0) - a    # (n,n)
+        scale = 1.0 / denom                  # (K,n)
+        scaled_M = scale[:, :, None] * perturbation[None, :, :]  # (K,n,n)
+        sv = torch.linalg.svd(scaled_M, full_matrices=False).S   # (K,n)
+        op_norm = sv[:, 0]                   # (K,)
+
+    return 1.0 - op_norm
 
 
 def _softmin(x: torch.Tensor, beta: float = 20.0) -> torch.Tensor:
@@ -73,8 +84,15 @@ def optimise_diagonal_reference(
     Returns (A0_matrix, margin_history).
     """
     torch.manual_seed(seed)
-    n = a.shape[0]
-    a_t = torch.tensor(np.diag(a) if a.ndim == 2 else a, dtype=_DTYPE)
+    a_full = a if a.ndim == 2 else np.diag(a)
+    n = a_full.shape[0]
+    # Diagonal A: pass (n,) for O(Kn) fast path; general A: pass (n,n) for SVD path
+    _diag = np.diag(np.diag(a_full))
+    _is_diag = np.allclose(a_full, _diag, atol=1e-12)
+    if _is_diag:
+        a_t = torch.tensor(np.diag(a_full), dtype=_DTYPE)  # (n,) fast path
+    else:
+        a_t = torch.tensor(a_full, dtype=_DTYPE)            # (n,n) SVD path
     points = _unit_circle(num_contour_points)
 
     # Initialise
