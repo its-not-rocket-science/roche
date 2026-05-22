@@ -110,8 +110,33 @@ def resolvent_margins(
     points: NDArray[np.complex128],
     ord: int | float | str | None = 2,
 ) -> FloatArray:
-    """Evaluate resolvent margins on contour points."""
+    """Evaluate resolvent margins on contour points.
+
+    Uses batched numpy operations when ord=2 for significant speedup.
+    """
+    if ord == 2:
+        return _resolvent_margins_batched(a, a0, points)
     return np.array([resolvent_margin(a, a0, z, ord=ord) for z in points], dtype=np.float64)
+
+
+def _resolvent_margins_batched(
+    a: ComplexMatrix,
+    a0: ComplexMatrix,
+    points: NDArray[np.complex128],
+) -> FloatArray:
+    """Batched 2-norm resolvent margins using numpy broadcasting."""
+    n = a.shape[0]
+    K = len(points)
+    identity = np.eye(n, dtype=np.complex128)
+    perturbation = (a0 - a).astype(np.complex128)
+    # Build batch of (zI - A0): shape (K, n, n)
+    lhs = points[:, None, None] * identity[None, :, :] - a0[None, :, :]
+    # Solve batch: X[k] = (z_k I - A0)^{-1} (A0 - A), shape (K, n, n)
+    x_batch = np.linalg.solve(lhs, np.broadcast_to(perturbation, (K, n, n)))
+    # 2-norm of each (n,n) matrix = largest singular value
+    sv = np.linalg.svd(x_batch, compute_uv=False)  # shape (K, n)
+    quantities = sv[:, 0]  # largest singular value per z
+    return (1.0 - quantities).astype(np.float64)
 
 
 def finite_difference_lipschitz(values: FloatArray, period: float = 2.0 * np.pi) -> float:
@@ -184,3 +209,31 @@ def certify_on_unit_circle(
     else:
         raise ValueError(f"unknown method: {method}")
     return grid_certificate(margins, lipschitz_bound=lipschitz_bound, method=method)
+
+
+def resolvent_lipschitz_bound(
+    a: ComplexMatrix,
+    a0: ComplexMatrix,
+    points: NDArray[np.complex128],
+    ord: int | float | str | None = 2,
+) -> float:
+    """Estimate an upper bound on the Lipschitz constant of the resolvent margin.
+
+    Uses the derivative bound: |d/dtheta m_res(theta)| <= kappa(theta)^2 * ||A0 - A||
+    where kappa(theta) = ||(e^{i*theta}I - A0)^{-1}||.
+
+    Returns max_k kappa(theta_k)^2 * ||A0 - A||.
+
+    This is a numerical estimate, not an analytic proof. For a formal certificate
+    a validated upper bound on kappa is required.
+    """
+    n = a.shape[0]
+    identity = np.eye(n, dtype=np.complex128)
+    perturbation_norm = float(norm(a0 - a, ord=ord))
+    max_kappa_sq: float = 0.0
+    for z in points:
+        resolvent = np.linalg.solve(z * identity - a0, identity)
+        kappa = float(norm(resolvent, ord=ord))
+        if kappa * kappa > max_kappa_sq:
+            max_kappa_sq = kappa * kappa
+    return max_kappa_sq * perturbation_norm

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(tee results_exp1.log)",
+      "Bash(tee results_exp2.log)",
+      "Bash(tee results_exp3.log)",
+      "Bash(tee results_exp4.log)"
+    ]
+  }
+}

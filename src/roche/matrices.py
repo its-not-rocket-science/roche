@@ -91,3 +91,34 @@ def scale_to_radius(a: ComplexMatrix, target_radius: float) -> ComplexMatrix:
     if rho == 0:
         return a.copy()
     return (a * (target_radius / rho)).astype(np.complex128)
+
+
+def block_diagonal_matrix(blocks: list[ComplexMatrix]) -> ComplexMatrix:
+    """Assemble a block-diagonal matrix from a list of square blocks."""
+    n = sum(b.shape[0] for b in blocks)
+    a = np.zeros((n, n), dtype=np.complex128)
+    offset = 0
+    for b in blocks:
+        k = b.shape[0]
+        a[offset : offset + k, offset : offset + k] = b
+        offset += k
+    return a
+
+
+def random_block_diagonal(
+    n: int,
+    block_size: int,
+    radius: float,
+    rng: np.random.Generator,
+) -> ComplexMatrix:
+    """Generate a stable block-diagonal matrix with uniform block size.
+
+    If n is not divisible by block_size, the last block is smaller.
+    """
+    blocks = []
+    remaining = n
+    while remaining > 0:
+        k = min(block_size, remaining)
+        blocks.append(random_normal_matrix(k, radius, rng))
+        remaining -= k
+    return block_diagonal_matrix(blocks)
