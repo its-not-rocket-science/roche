@@ -1,4 +1,7 @@
-"""Minimal diagonal SSM for Paper 1 Experiment 3.
+"""Diagonal SSM training for Papers 1 and 2.
+
+Paper 1: train_diagonal_ssm  — L-BFGS-B, no regularisation.
+Paper 2: train_diagonal_ssm_adam — Adam, pluggable regulariser.
 
 Implements a complex-diagonal state-space model trained via L-BFGS-B
 on a synthetic autoregressive prediction task.
@@ -6,7 +9,11 @@ on a synthetic autoregressive prediction task.
 
 from __future__ import annotations
 
+from typing import Callable
+
 import numpy as np
+import torch
+import torch.nn as nn
 from numpy.typing import NDArray
 from scipy.optimize import minimize
 
@@ -202,3 +209,92 @@ def schur_stability_summary(a_matrix: ComplexMatrix) -> dict:
         "schur_stable": rho < 1.0,
         "max_eigenvalue_abs": float(np.max(np.abs(np.linalg.eigvals(a_matrix)))),
     }
+
+
+# ---------------------------------------------------------------------------
+# Paper 2: Adam trainer with pluggable regulariser
+# ---------------------------------------------------------------------------
+
+class _DiagonalSSM(nn.Module):
+    """Diagonal complex SSM as a PyTorch module."""
+
+    def __init__(self, n_state: int, seed: int = 0) -> None:
+        super().__init__()
+        rng = np.random.default_rng(seed)
+        log_r = torch.tensor(rng.normal(-0.7, 0.2, n_state), dtype=torch.float64)
+        angles = torch.tensor(rng.uniform(0.0, 2 * np.pi, n_state), dtype=torch.float64)
+        b_re = torch.tensor(rng.normal(0.0, 0.1, n_state), dtype=torch.float64)
+        b_im = torch.tensor(rng.normal(0.0, 0.1, n_state), dtype=torch.float64)
+        c_re = torch.tensor(rng.normal(0.0, 0.1, n_state), dtype=torch.float64)
+        c_im = torch.tensor(rng.normal(0.0, 0.1, n_state), dtype=torch.float64)
+        self.log_r = nn.Parameter(log_r)
+        self.angles = nn.Parameter(angles)
+        self.b_re = nn.Parameter(b_re)
+        self.b_im = nn.Parameter(b_im)
+        self.c_re = nn.Parameter(c_re)
+        self.c_im = nn.Parameter(c_im)
+        self.d = nn.Parameter(torch.zeros(1, dtype=torch.float64))
+
+    @property
+    def a_diag(self) -> torch.Tensor:
+        """Complex diagonal eigenvalues; radii clamped to (0, e^1.5) via exp."""
+        log_r_clamped = torch.clamp(self.log_r, -10.0, 1.5)
+        radii = torch.exp(log_r_clamped)
+        return torch.polar(radii, self.angles).to(torch.complex128)
+
+    def forward(self, u_seq: torch.Tensor) -> torch.Tensor:
+        """u_seq: (T,) float64 → y: (T,) float64."""
+        T = u_seq.shape[0]
+        a = self.a_diag                            # (n,) complex
+        b = (self.b_re + 1j * self.b_im).to(torch.complex128)  # (n,)
+        c = (self.c_re + 1j * self.c_im).to(torch.complex128)  # (n,)
+        h = torch.zeros(a.shape[0], dtype=torch.complex128)
+        ys = []
+        for t in range(T):
+            h = a * h + b * u_seq[t].to(torch.complex128)
+            y_t = 2.0 * torch.real(c @ h) + self.d[0] * u_seq[t]
+            ys.append(y_t)
+        return torch.stack(ys)  # (T,) real (via real-part extraction)
+
+    def transition_matrix(self) -> ComplexMatrix:
+        with torch.no_grad():
+            return np.diag(self.a_diag.numpy().astype(np.complex128))
+
+
+def train_diagonal_ssm_adam(
+    u_seq: NDArray[np.float64],
+    target_seq: NDArray[np.float64],
+    n_state: int = 8,
+    n_epochs: int = 500,
+    lr: float = 1e-3,
+    reg_weight: float = 0.1,
+    regulariser: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    seed: int = 0,
+) -> tuple[ComplexMatrix, list[float], list[float]]:
+    """Train a diagonal complex SSM via Adam with an optional stability regulariser.
+
+    Returns (A_matrix, task_loss_history, reg_loss_history).
+    """
+    model = _DiagonalSSM(n_state, seed=seed)
+    u_t = torch.tensor(u_seq, dtype=torch.float64)
+    target_t = torch.tensor(target_seq, dtype=torch.float64)
+    optimiser = torch.optim.Adam(model.parameters(), lr=lr)
+
+    task_hist: list[float] = []
+    reg_hist: list[float] = []
+
+    for _ in range(n_epochs):
+        optimiser.zero_grad()
+        y_pred = model(u_t)
+        task_loss = torch.mean((y_pred - target_t) ** 2)
+        if regulariser is not None:
+            reg_loss = reg_weight * regulariser(model.a_diag)
+        else:
+            reg_loss = torch.zeros(1, dtype=torch.float64)[0]
+        total = task_loss + reg_loss
+        total.backward()
+        optimiser.step()
+        task_hist.append(task_loss.item())
+        reg_hist.append(reg_loss.item())
+
+    return model.transition_matrix(), task_hist, reg_hist

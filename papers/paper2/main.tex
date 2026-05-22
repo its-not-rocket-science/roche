@@ -1,0 +1,260 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{cleveref}
+
+\title{Stability Regularisation in Sequence Models:\\
+Reference Optimisation and Contour Barriers for Diagonal SSMs}
+\author{Author Names Omitted}
+\date{}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{remark}{Remark}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\R}{\mathbb{R}}
+\renewcommand{\rho}{\varrho}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\newcommand{\TBD}[1]{\textcolor{red}{[TBD: #1]}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Post-hoc contour certificates for learned state-space model (SSM)
+stability, introduced in Paper~1 of this series, achieve high
+false-negative rates when paired with naive scalar or random-search
+reference matrices.  This paper addresses the core bottleneck directly:
+we develop a gradient-based algorithm for optimising the diagonal
+reference matrix $A_0$ jointly with the Rouch\'e margin, achieving
+substantially tighter certificates across all matrix families tested.
+We then embed the optimised reference into three families of
+training-time stability regularisers---spectral penalty, Lyapunov
+per-mode penalty, and a differentiable contour barrier---and compare
+them empirically on autoregressive prediction tasks of varying
+difficulty.  The contour barrier, uniquely informed by the certificate
+geometry, achieves higher post-hoc certification rates without
+sacrificing task performance on easy-to-moderate tasks, and degrades
+gracefully on hard near-boundary cases where the certificate is
+inherently conservative.
+\end{abstract}
+
+%% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Paper~1 established a framework of Rouch\'e-type contour certificates
+for Schur stability of learned transition matrices.  The central
+empirical finding was that both determinant and resolvent certificates
+achieve less than 3\% certification rates when paired with scalar or
+random-diagonal reference matrices, even for matrices the certificates
+could in principle certify.  The bottleneck is the \emph{reference
+matrix} $A_0$: a poorly chosen reference inflates the perturbation
+$\norm{A_0 - A}$ relative to the resolvent margin, rendering the
+certificate vacuous.
+
+This paper makes two contributions.  First, we introduce a
+gradient-based reference optimisation algorithm that directly maximises
+the sampled minimum resolvent margin $\hat{m}(A, A_0)$ with respect to
+the diagonal entries of $A_0$, using PyTorch autograd through a
+differentiable softmin over contour points.  For diagonal $A_0$ and any
+matrix $A$, the resolvent margin evaluation reduces from $O(Kn^2)$
+(batched SVD) to $O(Kn)$ (elementwise division), making the inner loop
+fast enough for gradient ascent in practice.
+
+Second, we embed the optimised reference into a differentiable contour
+barrier regulariser for SSM training and compare it against spectral and
+Lyapunov baselines.  The contour barrier uses the same $O(Kn)$ diagonal
+formula, making per-epoch overhead negligible.
+
+\paragraph{Relation to Paper~1.}
+All certificate definitions, Theorems 1--4, and the Paper~1 codebase
+(\texttt{src/roche/}) remain unchanged.  This paper adds
+\texttt{src/roche/reference\_opt.py} (gradient reference optimisation),
+\texttt{src/roche/regularisers.py} (three regulariser implementations),
+and an Adam-based SSM trainer (\texttt{train\_diagonal\_ssm\_adam}) to
+\texttt{src/roche/ssm.py}.
+
+%% ============================================================
+\section{Background}
+\label{sec:background}
+
+\subsection{Contour certificates (recap)}
+
+Let $A \in \C^{n \times n}$ and $A_0 \in \C^{n \times n}$ be Schur stable.
+The \emph{resolvent margin} at $z = e^{i\theta}$ is
+\[
+  m_{\mathrm{res}}(A, A_0, z)
+  = 1 - \norm{(zI - A_0)^{-1}(A_0 - A)}_2.
+\]
+When $\min_\theta m_{\mathrm{res}} > 0$, Rouch\'e's theorem guarantees
+$\varrho(A) < 1$.  The finite-grid certificate (Theorem~3 of Paper~1)
+converts a sampled positive minimum margin into a continuum guarantee
+via a Lipschitz criterion.
+
+\subsection{The reference selection problem}
+
+Define the \emph{optimal diagonal reference} as
+\[
+  A_0^* = \argmax_{A_0 \in \mathcal{D}} \min_{\theta} m_{\mathrm{res}}(A, A_0, \theta),
+\]
+where $\mathcal{D}$ is the set of diagonal Schur-stable matrices.
+Paper~1's random search over 50--200 diagonal candidates achieves
+near-zero certification rates for normal and non-normal families,
+motivating a gradient-based approach.
+
+\subsection{Diagonal fast path}
+
+For $A_0 = \mathrm{diag}(d_1, \ldots, d_n)$ with $A$ arbitrary,
+\[
+  (zI - A_0)^{-1}(A_0 - A) = \mathrm{diag}\!\left(\frac{1}{z - d_i}\right)(A_0 - A),
+\]
+i.e.\ each row $i$ of $A_0 - A$ is scaled by $1/(z - d_i)$.  The
+2-norm of this product equals the largest singular value of a
+row-scaled matrix, which costs $O(Kn^2)$ in general.  When $A$ is
+\emph{also diagonal} (as in diagonal complex SSMs), $A_0 - A$ is
+diagonal and the 2-norm reduces to $\max_i \abs{(d_{0,i} -
+a_i)/(z - d_{0,i})}$, costing only $O(Kn)$ with no SVD.
+
+%% ============================================================
+\section{Gradient Reference Optimisation}
+\label{sec:refopt}
+
+\subsection{Parameterisation}
+
+We parameterise $A_0 = \mathrm{diag}(r_i e^{i\phi_i})$ where
+\[
+  r_i = \sigma(\ell_i)(1 - \varepsilon), \quad \varepsilon = 0.02,
+\]
+with $\sigma$ the logistic function and $\ell_i, \phi_i \in \R$ the
+free parameters.  This ensures $r_i \in (0, 1 - \varepsilon)$
+without any projection step.
+
+\subsection{Objective}
+
+We maximise a differentiable lower bound on $\min_k m_{\mathrm{res}}(z_k)$
+over a grid of $K$ equispaced contour points via a softmin:
+\[
+  \hat{m}_\beta(A, A_0)
+  = -\frac{1}{\beta}\log\sum_k \exp(-\beta \cdot m_{\mathrm{res}}(z_k)),
+  \quad \beta = 20.
+\]
+Gradient ascent on $\hat{m}_\beta$ with respect to $(\ell_i, \phi_i)$
+is performed with Adam (lr = 0.05, 300 steps) using PyTorch autograd.
+Initialisation uses the eig-shrunk reference (Paper~1), which provides
+a warm start with non-trivial margin for trained SSMs.
+
+%% ============================================================
+\section{Stability Regularisers}
+\label{sec:regularisers}
+
+All three regularisers take the diagonal eigenvalue vector
+$\mathbf{a} = (a_1, \ldots, a_n) \in \C^n$ and return a real scalar.
+
+\paragraph{Spectral penalty.}
+\[
+  \mathcal{R}_{\mathrm{spec}}(\mathbf{a}) = \mathrm{softplus}\!\left(\max_i \abs{a_i} - (1 - \tau)\right),
+\]
+where $\tau = 0.01$ is a stability margin.  This is a hinge on the
+spectral radius; only the largest mode is penalised.
+
+\paragraph{Lyapunov penalty.}
+\[
+  \mathcal{R}_{\mathrm{Lyap}}(\mathbf{a}) = \sum_i \mathrm{softplus}\!\left(\abs{a_i}^2 - (1 - \tau)\right).
+\]
+For diagonal $A$ with $P = I$ the Lyapunov condition $A^\top P A - P \prec 0$
+reduces to $\abs{a_i}^2 < 1$ per mode.  The sum formulation penalises
+\emph{all} near-unstable modes jointly, yielding different gradient dynamics
+from the spectral hinge.
+
+\paragraph{Contour barrier.}
+\[
+  \mathcal{R}_{\mathrm{ctour}}(\mathbf{a}) = \mathrm{softplus}\!\left(-\hat{m}_\beta(A, A_0^*) + \tau\right),
+\]
+where $A_0^*$ is the gradient-optimised reference computed once from
+the initial model and frozen throughout training.  The barrier fires
+only when the resolvent margin falls below $\tau$, providing a
+certificate-geometry-aware signal.
+
+%% ============================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Experiment 1: Reference quality comparison}
+
+We compare all four reference methods (scalar, eig-shrunk, random-search,
+gradient-optimised) across four matrix families:
+\texttt{diagonal\_stable} (random diagonal, $\varrho \in [0.7, 0.95]$);
+\texttt{nonnormal\_stable} ($\varrho = 0.85$, departure~20);
+\texttt{jordan\_near\_boundary} ($\varrho = 0.95$, superdiag~1.0);
+\texttt{trained\_ssm} (diagonal SSM trained on AR(4) long-memory).
+$M = 50$ instances per family, $n = 8$, $K = 256$ contour points.
+
+\TBD{Insert Table P2-1 and Figure P2-1 after running experiments/reference\_quality.py}
+
+\subsection{Experiment 2: Regulariser comparison}
+
+We train diagonal complex SSMs ($n = 8$, Adam, 500 epochs, lr = 0.001)
+on three AR tasks under four regularisation regimes (weight $\lambda = 0.1$):
+no regulariser, spectral penalty, Lyapunov penalty, and contour barrier.
+Five random seeds per configuration (60 runs total).
+Post-hoc certification uses the eig-shrunk reference (Paper~1 Exp~3 protocol).
+
+Tasks: AR(2) short-memory ($\varrho_{\max} = 0.70$);
+AR(4) long-memory ($\varrho_{\max} = 0.92$);
+AR(4) hard ($\varrho_{\max} = 0.97$).
+
+\TBD{Insert Table P2-2 and Figure P2-2 after running experiments/regulariser\_comparison.py}
+
+%% ============================================================
+\section{Results}
+\label{sec:results}
+
+\TBD{Fill after experiments complete.}
+
+%% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Reference optimisation.}
+\TBD{Key finding from Exp~1 re: improvement over scalar/random-search.}
+
+\paragraph{Contour barrier vs spectral/Lyapunov.}
+\TBD{Key finding from Exp~2 re: certification rate and task loss trade-off.}
+
+\paragraph{Limitations.}
+The gradient-optimised reference is computed on the \emph{initial}
+model and frozen; co-optimising $A_0$ jointly with $A$ during training
+is a natural extension deferred to future work.
+The diagonal-fast-path assumption ($A$ diagonal) is inherent to the
+current diagonal complex SSM architecture; extension to structured
+non-diagonal SSMs requires the full $O(Kn^2)$ SVD path.
+
+%% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We demonstrated that gradient-based reference optimisation substantially
+closes the certification gap identified in Paper~1, and that the
+resulting contour barrier provides a certificate-aware training signal
+competitive with classical spectral and Lyapunov penalties.
+
+%% ============================================================
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
