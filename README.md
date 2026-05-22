@@ -1,41 +1,59 @@
 # Roche
 
-Research code and paper scaffolding for exploring Rouché-type perturbation certificates in machine learning, especially stability certification for learned state-space models.
+Research code for a three-paper series on Rouché-type perturbation certificates for learned state-space models (SSMs).
 
-## Contents
+## Papers
+
+| # | Title | Status |
+|---|-------|--------|
+| 1 | Contour Certificates for Stable Learned Dynamics | Complete |
+| 2 | Stability Regularisation in Sequence Models | Complete |
+| 3 | Analytic Surrogates for Pathwise Robustness | Complete |
+
+## Repository layout
 
 ```text
-roche/
-  PROJECT_DESCRIPTION.md
-  README.md
-  pyproject.toml
-  src/roche/
-    certificates.py        # determinant and resolvent contour certificates
-    matrices.py            # random matrix generators and stability utilities
-    reference.py           # stable reference construction/search
-    plotting.py            # simple plotting helpers
-  experiments/
-    synthetic_certification.py
-  papers/
-    paper1/
-      outline.md
-      main.tex
-    paper2/
-      outline.md
-    paper3/
-      outline.md
-  tests/
-    test_certificates.py
-    test_matrices.py
+src/roche/
+  certificates.py      # determinant and resolvent contour certificates (Paper 1)
+  matrices.py          # random matrix generators and stability utilities (Paper 1)
+  reference.py         # scalar, eig-shrunk, random-search reference construction (Paper 1)
+  plotting.py          # margin and eigenvalue plotting helpers (Paper 1)
+  ssm.py               # diagonal SSM, L-BFGS-B trainer (Paper 1), Adam trainer (Paper 2)
+  reference_opt.py     # gradient-based diagonal reference optimisation via PyTorch (Paper 2)
+  regularisers.py      # spectral, Lyapunov, contour-barrier training penalties (Paper 2)
+  surrogate.py         # Chebyshev surrogate fitting and approximation error (Paper 3)
+  path_cert.py         # real-polynomial and Rouche path certificates (Paper 3)
+
+experiments/
+  synthetic_certification.py     # Paper 1, Exp 1: synthetic matrix families
+  discretisation_correctness.py  # Paper 1, Exp 2: finite-grid theorem verification
+  trained_ssm.py                 # Paper 1, Exp 3: post-hoc certification of trained SSMs
+  runtime_scalability.py         # Paper 1, Exp 4: wall-time vs matrix size
+  reference_quality.py           # Paper 2, Exp 1: reference method comparison
+  regulariser_comparison.py      # Paper 2, Exp 2: regulariser comparison on AR tasks
+  path_cert_synthetic.py         # Paper 3, Exp 1: synthetic polynomial classifiers
+  path_cert_networks.py          # Paper 3, Exp 2+3: two-moons MLP + scaling limits
+
+papers/
+  paper1/main.tex                # all tables and figures filled
+  paper2/main.tex                # all tables and figures filled
+  paper3/main.tex                # all tables and figures filled
+
+results/
+  exp{1-4}/                      # Paper 1 figures
+  p2exp{1-2}/                    # Paper 2 figures
+  p3exp{1-2}/                    # Paper 3 figures
+
+tests/
+  test_certificates.py
+  test_matrices.py
 ```
 
 ## Quick start
 
-Create a virtual environment and install the package in editable mode:
-
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e '.[dev]'
 ```
 
@@ -45,38 +63,38 @@ Run tests:
 pytest
 ```
 
-Run the starter synthetic experiment:
+Reproduce all experiments (run from repo root):
 
 ```bash
-python experiments/synthetic_certification.py --n 8 --num-matrices 100 --num-contour 256
+# Paper 1
+python experiments/synthetic_certification.py
+python experiments/discretisation_correctness.py
+python experiments/trained_ssm.py
+python experiments/runtime_scalability.py
+
+# Paper 2
+python experiments/reference_quality.py
+python experiments/regulariser_comparison.py
+
+# Paper 3
+python experiments/path_cert_synthetic.py
+python experiments/path_cert_networks.py
 ```
 
-## Core idea for Paper 1
+Figures are written to `results/`. LaTeX PDFs compile with:
 
-For a learned transition matrix \(A\), define
+```bash
+cd papers/paper1 && pdflatex main.tex
+cd papers/paper2 && pdflatex main.tex
+cd papers/paper3 && pdflatex main.tex
+```
 
-\[
-p_A(z)=\det(zI-A).
-\]
+## Core idea
 
-Given a known-stable reference matrix \(A_0\), Rouché's theorem gives the sufficient stability certificate
+For a learned SSM transition matrix $A$, the resolvent certificate uses a known-stable diagonal reference $A_0$ to certify Schur stability via
 
-\[
-|p_{A_0}(z)| > |p_A(z)-p_{A_0}(z)|,\qquad |z|=1.
-\]
+$$\sup_{|z|=1} \|(zI-A_0)^{-1}(A_0-A)\| < 1.$$
 
-The repository also implements a matrix-valued resolvent variant based on
-
-\[
-\sup_{|z|=1}\|(zI-A_0)^{-1}(A_0-A)\| < 1.
-\]
-
-The determinant certificate is theorem-faithful but can be ill-conditioned. The resolvent certificate is often numerically preferable and connects the project to robust stability, pseudospectra, and small-gain arguments.
-
-## Development priorities
-
-1. Strengthen the numerical implementation of contour margins.
-2. Add deterministic Lipschitz bounds rather than relying only on dense sampling.
-3. Expand reference-selection methods.
-4. Add structured SSM matrices and trained transition matrices.
-5. Build Paper 2 regularisers on top of the Paper 1 certificate machinery.
+Paper 1 establishes the theory and shows the bottleneck is reference quality.  
+Paper 2 optimises the reference by gradient ascent and embeds it in training-time regularisers.  
+Paper 3 transfers the zero-counting idea to classifier path robustness and documents why it is dominated by a simpler real-polynomial check.
