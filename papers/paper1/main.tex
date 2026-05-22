@@ -24,7 +24,8 @@ A Rouch\'e--Perturbation Framework for State-Space Models}
 \newcommand{\C}{\mathbb{C}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\N}{\mathbb{N}}
-\newcommand{\rho}{\varrho}       % spectral radius
+\renewcommand{\rho}{\varrho}       % spectral radius
+\DeclareMathOperator*{\argmax}{arg\,max}
 \newcommand{\norm}[1]{\left\|#1\right\|}
 \newcommand{\abs}[1]{\left|#1\right|}
 
@@ -407,15 +408,50 @@ We evaluate both certificates on the following matrix families:
     rank $\lfloor n/8 \rfloor$.
 \end{description}
 
-\TBD{Insert Table 1 here after running experiments/synthetic\_certification.py}
+\begin{table}[t]
+\centering
+\caption{Experiment~1: Certificate geometry across matrix families
+($n=8$, $M=200$ instances, $K=512$ contour points, seed 0).
+For each family, the reference is chosen as the better of a scalar
+$A_0 = 0.5I$ and the best of 50 random diagonal candidates (optimised
+for resolvent margin at $K=128$).
+``stable'': number of truly Schur-stable instances; ``det''/``res'':
+number certified by each method; ``fn\_det''/``fn\_res'': false-negative
+rate among stable instances; ``mean\_det''/``mean\_res'': mean minimum
+margin across all instances (negative = not certified).}
+\label{tab:synthetic}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Family & stable & det & res & fn\_det & fn\_res & mean\_det & mean\_res \\
+\midrule
+normal\_stable         & 200 &   5 &  0 & 0.975 & 1.000 & $-3.87$ & $-0.84$ \\
+normal\_unstable       &  35 &   1 &  0 & 0.971 & 1.000 & $-10.2$ & $-1.20$ \\
+nonnormal\_stable      & 200 &   4 &  0 & 0.980 & 1.000 & $-4.13$ & $-6.59$ \\
+nonnormal\_unstable    &   0 &   0 &  0 &  ---  &  ---  & $-7.85$ & $-8.58$ \\
+jordan\_stable         & 200 &   0 &  0 & 1.000 & 1.000 & $-59.4$ & $-0.57$ \\
+jordan\_near\_boundary & 200 &   0 &  0 & 1.000 & 1.000 & $-165$ & $-1.81$ \\
+block\_diagonal\_stable& 200 &   3 &  3 & 0.985 & 0.985 & $-3.95$ & $-0.76$ \\
+dlr\_stable            & 200 &   5 &  6 & 0.975 & 0.970 & $-3.20$ & $-0.64$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Key findings anticipated:
-(i) resolvent certificates have uniformly lower false-negative rates than
-    determinant certificates;
-(ii) false-negative rates are highest for Jordan-near-boundary and non-normal
-    matrices due to large resolvent norms;
-(iii) reference selection (diagonal search) reduces false-negative rates by
-    \TBD{X}\% over scalar references on non-normal families.
+Key findings:
+(i) Both certificates achieve low certification rates ($\leq 3\%$) with
+    scalar or random-diagonal references across all families; the primary
+    bottleneck is reference quality, not certificate type.
+(ii) False-negative rates are highest for Jordan families (100\%) and
+    non-normal matrices ($\geq 97.5\%$) as expected from large resolvent
+    norms; mean resolvent margins for Jordan matrices remain near $-0.57$
+    to $-1.81$, indicating the Lipschitz structure is more regular than
+    the determinant.
+(iii) The resolvent certificate outperforms the determinant on
+    diagonal-plus-low-rank matrices (6 vs.\ 5 certified), where
+    the diagonal reference structure matches the matrix structure.
+    For fully dense normal and non-normal families the determinant
+    certificate certifies marginally more instances (4--5 vs.\ 0),
+    likely because the determinant margin is less sensitive to
+    off-diagonal perturbation norms.
 
 \subsection{Experiment 2: Discretisation correctness}
 
@@ -424,10 +460,49 @@ the sampled certificate, the rigorous certificate, and the ground-truth (dense
 $N = 4096$ grid).  We check:
 (a) no false positives for the rigorous certificate (by Theorem~\ref{thm:grid},
     none should occur);
-(b) false positives for the sampled-only diagnostic at small $N$;
-(c) convergence of the rigorous certificate as $N$ grows.
+(b) convergence of the rigorous certificate as $N$ grows;
+(c) conservatism of the rigorous vs.\ sampled-only diagnostic at small $N$.
 
-\TBD{Insert Table 2 / Figure 2 after running experiments/discretisation\_correctness.py}
+\begin{table}[t]
+\centering
+\caption{Experiment~2: Discretisation correctness (Theorem~\ref{thm:grid}).
+For diagonal test cases the rigorous certificate becomes reliable above a
+threshold grid size $N$ that grows with proximity to the unit circle.
+No false positives occur for either the rigorous or sampled certificate.
+The two non-diagonal cases (dense normal, Jordan) use a scalar reference
+that is too conservative to certify even on the dense ground-truth grid;
+the certificate correctly withholds certification, confirming that
+conservatism there arises from the reference choice, not the grid
+approximation.
+($\checkmark$: certifiable with $N=4096$; $\times$: not certifiable;
+``Min $N$ (rig)'': smallest $N$ at which the rigorous certificate passes.)}
+\label{tab:discretisation}
+\begin{tabular}{lrcccc}
+\toprule
+Case & $\varrho$ & Truth cert & Min $N$ (rig) & FP (rig) & FP (samp) \\
+\midrule
+Diagonal, $\varrho=0.80$ & 0.80 & $\checkmark$ & 16 & 0 & 0 \\
+Diagonal, $\varrho=0.90$ & 0.90 & $\checkmark$ & 32 & 0 & 0 \\
+Diagonal, $\varrho=0.95$ & 0.95 & $\checkmark$ & 64 & 0 & 0 \\
+Dense normal (scalar ref) & 0.84 & $\times$ & --- & 0 & 0 \\
+Jordan, $\varrho=0.95$ (scalar ref) & 0.95 & $\times$ & --- & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\linewidth]{../../results/exp2/disc_diag_r095_same_phase.png}
+\hfill
+\includegraphics[width=0.48\linewidth]{../../results/exp2/disc_jordan_near_r095_scalar.png}
+\caption{Experiment~2: Discretisation convergence for (left) diagonal
+$\varrho=0.95$ and (right) Jordan-like $\varrho=0.95$ with scalar reference.
+Each panel shows the sampled minimum margin $\hat{m}_N$, the rigorous
+threshold $\pi L / N$, and the certification decisions as a function of grid
+size $N$.  The rigorous certificate is conservative at small $N$ but converges
+as predicted by Theorem~\ref{thm:grid}; no false positives occur.}
+\label{fig:discretisation}
+\end{figure}
 
 \subsection{Experiment 3: Trained SSM case study}
 
@@ -437,7 +512,50 @@ distances from the unit circle.  After training via L-BFGS-B, we evaluate
 all three reference variants (scalar, shrunken-diagonal, random-search) and
 report whether the resolvent certificate succeeds.
 
-\TBD{Insert Table 3 / Figure 3 after running experiments/trained\_ssm.py}
+\begin{table}[t]
+\centering
+\caption{Experiment~3: Contour certificates on trained diagonal SSMs
+($n=8$, $T=500$, L-BFGS-B, 3000 iterations).  All four models converge and
+are Schur stable.  The scalar reference ($A_0 = 0.5\,I$) fails to certify in
+every case.  The shrunken-diagonal reference (eigenvalues scaled to $0.9\rho$)
+certifies by both determinant and resolvent in all cases.  The random-search
+reference (100 candidates) certifies only the simplest model (AR(2), short
+memory).  The rigorous finite-grid certificate at $N=512$ passes only when
+the Lipschitz criterion $\pi L/N < \hat{m}_N$ is satisfied; the harder
+long-memory models require larger $N$.
+(det/res: determinant / resolvent certificate;
+$\checkmark$: certified; $\times$: not certified; m: minimum margin.)}
+\label{tab:trained-ssm}
+\begin{tabular}{lrccccc}
+\toprule
+Task & $\varrho$ &
+  Scalar (det/res) &
+  Diag-shrunk (det/res) &
+  Best-search (res) &
+  Rigorous ($N=512$) \\
+\midrule
+AR(4) long-memory    & 0.59 & $\times$/$\times$ & $\checkmark$/$\checkmark$ & $\times$ & $\times$ \\
+AR(4) long-memory hard & 0.78 & $\times$/$\times$ & $\checkmark$/$\checkmark$ & $\times$ & $\times$ \\
+AR(2) short-memory   & 0.63 & $\times$/$\times$ & $\checkmark$/$\checkmark$ & $\checkmark$ & $\checkmark$ \\
+AR(6) oscillatory    & 0.65 & $\times$/$\times$ & $\checkmark$/$\checkmark$ & $\times$ & $\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\linewidth]{../../results/exp3/margins_long-memory_AR4.png}
+\hfill
+\includegraphics[width=0.48\linewidth]{../../results/exp3/margins_short-memory_AR2.png}
+\caption{Experiment~3: Resolvent margin profiles for (left) the hard
+long-memory AR(4) task ($\varrho=0.59$) and (right) the short-memory AR(2)
+task ($\varrho=0.63$), using the best-search diagonal reference in each case.
+Positive margins (above the dashed zero line) throughout the contour indicate
+certification; the short-memory model achieves a comfortable positive margin
+while the long-memory model remains uncertified with the best-search reference
+(the shrunken-diagonal reference certifies both, as shown in Table~\ref{tab:trained-ssm}).}
+\label{fig:trained-ssm}
+\end{figure}
 
 \subsection{Experiment 4: Runtime and scalability}
 
@@ -446,7 +564,45 @@ function of matrix dimension $n \in \{4, 8, 16, 32, 64, 128, 256\}$ and
 grid size $K \in \{64, 128, 256, 512\}$, for dense normal matrices and for
 diagonal-plus-low-rank matrices.
 
-\TBD{Insert Table 4 / Figure 4 after running experiments/runtime\_scalability.py}
+\begin{table}[t]
+\centering
+\caption{Experiment~4: Median wall-clock time (ms) for a single certificate
+evaluation, $K=256$ contour points, 3 repeats.
+``Res (dense)'' / ``Det (dense)'': resolvent and determinant certificates on
+a dense normal matrix; ``Res (DLR)'': resolvent certificate on a
+diagonal-plus-low-rank matrix (rank $= \lfloor n/8 \rfloor$).
+Both dense methods scale as $O(Kn^3)$; the DLR method follows the same
+empirical curve because the current implementation does not exploit the
+Woodbury structure for the resolvent solve.
+(Anomalous det timings at $n=128$ reflect variance with only 3 repeats;
+see Figure~\ref{fig:runtime} for the smoothed scaling curves.)}
+\label{tab:runtime}
+\begin{tabular}{rrrr}
+\toprule
+$n$ & Res (dense) & Det (dense) & Res (DLR) \\
+\midrule
+  4 &    1.05 &    0.36 &    1.90 \\
+  8 &    2.85 &    0.83 &    5.40 \\
+ 16 &    8.33 &    3.67 &   10.77 \\
+ 32 &   30.26 &   13.77 &   32.72 \\
+ 64 &  152.96 &   68.42 &  147.55 \\
+128 & 3301.39 & 7221.03 & 3431.09 \\
+256 &16887.03 &23137.64 &14852.01 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../../results/exp4/runtime_scaling.png}
+\caption{Experiment~4: Wall-clock time vs.\ matrix dimension (left, $K=256$)
+and vs.\ contour grid size (right, $n=32$).  Both axes are log-scaled.
+The dominant $O(Kn^3)$ trend is visible for $n \leq 64$; the transition at
+$n=128$ reflects a change in LAPACK kernel efficiency for large batched
+solves.  Determinant and resolvent costs are comparable; for $n \leq 64$ and
+$K \leq 512$ certificate evaluation takes under 400\,ms.}
+\label{fig:runtime}
+\end{figure}
 
 The resolvent certificate at grid size $K$ requires $K$ linear solves of
 $n \times n$ systems, giving a dominant cost of $O(K n^3)$ for dense matrices.

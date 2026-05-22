@@ -74,7 +74,24 @@ def determinant_margins(
     points: NDArray[np.complex128],
 ) -> FloatArray:
     """Evaluate determinant margins on contour points."""
-    return np.array([determinant_margin(a, a0, z) for z in points], dtype=np.float64)
+    return _determinant_margins_batched(a, a0, points)
+
+
+def _determinant_margins_batched(
+    a: ComplexMatrix,
+    a0: ComplexMatrix,
+    points: NDArray[np.complex128],
+) -> FloatArray:
+    """Batched determinant margins using numpy broadcasting."""
+    n = a.shape[0]
+    K = len(points)
+    identity = np.eye(n, dtype=np.complex128)
+    # Shape (K, n, n): z_k * I - A  and  z_k * I - A0
+    lhs_a  = points[:, None, None] * identity[None, :, :] - a[None, :, :]
+    lhs_a0 = points[:, None, None] * identity[None, :, :] - a0[None, :, :]
+    p  = np.linalg.det(lhs_a)   # shape (K,)
+    p0 = np.linalg.det(lhs_a0)  # shape (K,)
+    return (np.abs(p0) - np.abs(p - p0)).astype(np.float64)
 
 
 def resolvent_quantity(
@@ -119,6 +136,10 @@ def resolvent_margins(
     return np.array([resolvent_margin(a, a0, z, ord=ord) for z in points], dtype=np.float64)
 
 
+def _is_diagonal(m: ComplexMatrix) -> bool:
+    return bool(np.all(m == np.diag(np.diag(m))))
+
+
 def _resolvent_margins_batched(
     a: ComplexMatrix,
     a0: ComplexMatrix,
@@ -127,16 +148,20 @@ def _resolvent_margins_batched(
     """Batched 2-norm resolvent margins using numpy broadcasting."""
     n = a.shape[0]
     K = len(points)
-    identity = np.eye(n, dtype=np.complex128)
     perturbation = (a0 - a).astype(np.complex128)
-    # Build batch of (zI - A0): shape (K, n, n)
-    lhs = points[:, None, None] * identity[None, :, :] - a0[None, :, :]
-    # Solve batch: X[k] = (z_k I - A0)^{-1} (A0 - A), shape (K, n, n)
-    x_batch = np.linalg.solve(lhs, np.broadcast_to(perturbation, (K, n, n)))
-    # 2-norm of each (n,n) matrix = largest singular value
-    sv = np.linalg.svd(x_batch, compute_uv=False)  # shape (K, n)
-    quantities = sv[:, 0]  # largest singular value per z
-    return (1.0 - quantities).astype(np.float64)
+
+    if _is_diagonal(a0):
+        # (zI - A0)^{-1} = diag(1/(z - d_i)); no solve needed
+        d = np.diag(a0)  # (n,)
+        scale = 1.0 / (points[:, None] - d[None, :])  # (K, n)
+        x_batch = scale[:, :, None] * perturbation[None, :, :]  # (K, n, n)
+    else:
+        identity = np.eye(n, dtype=np.complex128)
+        lhs = points[:, None, None] * identity[None, :, :] - a0[None, :, :]
+        x_batch = np.linalg.solve(lhs, perturbation[None])  # (K, n, n)
+
+    sv = np.linalg.svd(x_batch, compute_uv=False)  # (K, n)
+    return (1.0 - sv[:, 0]).astype(np.float64)
 
 
 def finite_difference_lipschitz(values: FloatArray, period: float = 2.0 * np.pi) -> float:
@@ -230,10 +255,18 @@ def resolvent_lipschitz_bound(
     n = a.shape[0]
     identity = np.eye(n, dtype=np.complex128)
     perturbation_norm = float(norm(a0 - a, ord=ord))
-    max_kappa_sq: float = 0.0
-    for z in points:
-        resolvent = np.linalg.solve(z * identity - a0, identity)
-        kappa = float(norm(resolvent, ord=ord))
-        if kappa * kappa > max_kappa_sq:
-            max_kappa_sq = kappa * kappa
+    if ord == 2:
+        # ||(zI - A0)^{-1}||_2 = 1 / sigma_min(zI - A0) — no solve needed
+        K = len(points)
+        lhs = points[:, None, None] * identity[None, :, :] - a0[None, :, :]
+        sv = np.linalg.svd(lhs, compute_uv=False)  # (K, n)
+        kappas = 1.0 / sv[:, -1]                   # 1 / sigma_min per point
+        max_kappa_sq = float(np.max(kappas ** 2))
+    else:
+        max_kappa_sq = 0.0
+        for z in points:
+            resolvent = np.linalg.solve(z * identity - a0, identity)
+            kappa = float(norm(resolvent, ord=ord))
+            if kappa * kappa > max_kappa_sq:
+                max_kappa_sq = kappa * kappa
     return max_kappa_sq * perturbation_norm
