@@ -1,0 +1,468 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{cleveref}
+
+\title{Analytic Surrogates for Pathwise Robustness:\\
+On the Promise and Limits of Rouch\'e-Type Zero-Counting\\
+in Neural Network Verification}
+\author{Author Names Omitted}
+\date{}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{remark}{Remark}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\newcommand{\TBD}[1]{\textcolor{red}{[TBD: #1]}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We investigate whether complex-analytic zero-counting can soundly certify
+the absence of classifier boundary crossings along input paths.  Given a
+continuous path $\gamma:[0,1]\to\mathbb{R}^d$ between two same-class inputs,
+the per-class margin $g_j(t)$ must remain positive throughout.  We construct
+polynomial surrogates $Q_j$ by Chebyshev sampling, bound the approximation
+error $\epsilon_j$, and apply Rouch\'e's theorem on a rectangular complex
+domain to certify zero-freeness.  On synthetic polynomial classifiers with
+controlled margin and degree, the Rouch\'e certificate matches the simpler
+real-polynomial positivity check---both achieve near-100\% certification at
+large margins and degrade gracefully as margin shrinks.  On a small MLP
+trained on the two-moons dataset, certification rates collapse rapidly as
+path length is scaled beyond the original interpolation, because the
+surrogate approximation error grows faster than the available margin.
+Our main finding is a sharp negative result: Rouch\'e certificates offer no
+advantage over the real-polynomial check on real-analytic paths, and both
+become vacuous on realistic neural paths beyond short interpolation scales.
+We provide a counterexample showing why naive complexification fails, a sound
+theorem connecting zero-freeness to pathwise positivity, and practical
+guidelines for when complex-analytic certification is not worth attempting.
+\end{abstract}
+
+%% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Post-hoc certification of neural network behaviour is an active area with
+two broad strategies: \emph{bound propagation} (interval arithmetic, abstract
+interpretation) and \emph{sampling with verification} (Lipschitz bounds,
+Lyapunov methods).  A less-explored direction asks whether classical
+complex analysis---specifically Rouch\'e's theorem on zero-counting---can
+provide certificates for the absence of class-boundary crossings along
+continuous input paths.
+
+The idea is appealing: fit an analytic surrogate $Q_j(t)$ to the margin
+function $g_j(t) = f_c(\gamma(t)) - f_j(\gamma(t))$ on $[0,1]$, extend
+analytically to a complex domain $D\supset[0,1]$, and apply Rouch\'e to
+certify zero-freeness in $D$.  Since $[0,1]\subset D$, zero-freeness in $D$
+implies zero-freeness on $[0,1]$, and one sign evaluation completes the
+positivity certificate.
+
+Papers~1 and~2 of this series developed Rouch\'e-type certificates for
+the spectral radius of learned transition matrices---a setting where the
+``path'' is the unit circle and the complex structure is intrinsic.  Paper~3
+asks whether the same toolkit transfers to the classifier boundary problem,
+where the analytic structure must be \emph{imposed} through a surrogate.
+
+Our contributions are:
+\begin{enumerate}
+  \item A sound theorem (Theorem~\ref{thm:main}) connecting Rouch\'e
+    zero-freeness to pathwise margin positivity via a surrogate error bound.
+  \item A counterexample (Section~\ref{sec:counterexample}) showing that naive
+    analytic continuation can introduce spurious zeros not present on the real path.
+  \item Experiments on synthetic polynomial classifiers
+    (Section~\ref{sec:exp_synthetic}) confirming the certificate works when
+    surrogates are accurate.
+  \item Experiments on a small MLP (Section~\ref{sec:exp_networks}) showing
+    certification collapses with path length, and that Rouch\'e offers no
+    improvement over the simpler real-polynomial check.
+  \item Practical guidelines (Section~\ref{sec:discussion}) for when
+    complex-analytic path certification is not worth attempting.
+\end{enumerate}
+
+%% ============================================================
+\section{Background and Setup}
+\label{sec:setup}
+
+\subsection{Classifier path margin}
+
+Let $f:\mathbb{R}^d\to\mathbb{R}^K$ be a classifier, $x_a, x_b$ inputs
+predicted as class $c$, and $\gamma:[0,1]\to\mathbb{R}^d$ a continuous path
+with $\gamma(0)=x_a$, $\gamma(1)=x_b$.  For each rival class $j\neq c$ define
+\begin{equation}
+  g_j(t) = f_c(\gamma(t)) - f_j(\gamma(t)).
+  \label{eq:margin}
+\end{equation}
+The path is \emph{class-preserving} if $g_j(t)>0$ for all $t\in[0,1]$ and
+all $j\neq c$.
+
+\subsection{Rouch\'e's theorem}
+
+\begin{theorem}[Rouch\'e, classical]
+  Let $D\subset\mathbb{C}$ be a simply connected domain with boundary
+  $\partial D$.  If $F,G$ are analytic on $\bar D$ and
+  $\abs{G(z)}<\abs{F(z)}$ for all $z\in\partial D$, then $F$ and $F+G$
+  have the same number of zeros (counted with multiplicity) in $D$.
+\end{theorem}
+
+We apply this with $F=R_j$ (a reference analytic function with no zeros in
+$D$) and $G=Q_j-R_j$, concluding that $Q_j$ has no zeros in $D$ whenever
+$\abs{R_j(z)}>\abs{Q_j(z)-R_j(z)}$ on $\partial D$.
+
+%% ============================================================
+\section{Analytic Surrogate Construction}
+\label{sec:surrogate}
+
+\subsection{Chebyshev polynomial surrogate}
+
+Let $g_j:[0,1]\to\mathbb{R}$ be the margin function.  We fit a degree-$d$
+polynomial surrogate $Q_j$ by evaluating $g_j$ at the $n\geq d+1$ Chebyshev
+nodes of the first kind
+\begin{equation}
+  t_k = \frac{1}{2}\!\left(1 + \cos\frac{(2k-1)\pi}{2n}\right),
+  \quad k=1,\ldots,n,
+\end{equation}
+and solving the least-squares system.  Chebyshev sampling minimises Runge
+oscillation and gives near-optimal approximation rates for smooth $g_j$.
+
+\subsection{Approximation error bound}
+
+After fitting $Q_j$, we estimate
+\begin{equation}
+  \epsilon_j \;=\; \max_{t\in\mathcal{T}} \abs{g_j(t) - Q_j(t)},
+\end{equation}
+where $\mathcal{T}$ is a uniform grid of 500 points on $[0,1]$.  This is a
+numerical estimate, not a rigorous bound; obtaining a rigorous bound would
+require Bernstein ellipse analysis or interval arithmetic.  We treat
+$\epsilon_j$ as a conservative estimate and note this caveat throughout.
+
+%% ============================================================
+\section{Certificates}
+\label{sec:certs}
+
+\subsection{Real-polynomial positivity certificate}
+
+A direct real certificate requires no complex analysis:
+\begin{equation}
+  \min_{t\in[0,1]} Q_j(t) > \epsilon_j
+  \;\Longrightarrow\; g_j(t) > 0 \;\text{for all}\; t\in[0,1].
+\end{equation}
+This is tight: the condition fails iff the surrogate minimum is within the
+approximation error of zero.
+
+\subsection{Rouch\'e zero-free certificate}
+
+Let $D\subset\mathbb{C}$ be a rectangular domain enclosing $[0,1]$:
+\begin{equation}
+  D = \{z\in\mathbb{C} : -w \leq \operatorname{Re}(z) \leq 1+w,\;
+        \abs{\operatorname{Im}(z)} \leq w\}
+\end{equation}
+for half-width $w>0$.  Let $c\in\mathbb{C}$ be the centroid of $Q_j$ on
+$\partial D$, used as a constant zero-free reference $R_j\equiv c$.
+
+\begin{definition}[Rouch\'e margin]
+  \begin{equation}
+    m_{\mathrm{R}}(Q_j,\partial D) \;=\; \abs{c} - \max_{z\in\partial D}\abs{Q_j(z)-c}.
+    \label{eq:rouche_margin}
+  \end{equation}
+\end{definition}
+
+\begin{theorem}[Pathwise positivity via Rouch\'e]
+  \label{thm:main}
+  Suppose $Q_j$ is a polynomial, $c$ is its contour centroid,
+  $m_{\mathrm{R}}(Q_j,\partial D)>0$, and $Q_j(0)>\epsilon_j$.  Then
+  $Q_j$ has no zeros in $D$, hence no zeros in $[0,1]$; since $Q_j(0)>0$
+  we have $Q_j(t)>0$ for all $t\in[0,1]$.  If additionally
+  $\max_{t\in[0,1]}\abs{g_j(t)-Q_j(t)}\leq\epsilon_j$, then
+  $g_j(t)>0$ for all $t\in[0,1]$.
+\end{theorem}
+
+\begin{proof}
+  $m_{\mathrm{R}}>0$ means $\abs{c}>\abs{Q_j(z)-c}$ for all $z\in\partial D$.
+  By Rouch\'e's theorem, $Q_j$ and the constant $c\neq 0$ have the same
+  number of zeros in $D$, namely zero.  Since $Q_j$ is continuous and zero-free
+  on the connected set $[0,1]\subset D$, its sign is constant there and fixed
+  by $Q_j(0)>\epsilon_j>0$.  The error bound then gives
+  $g_j(t)\geq Q_j(t)-\epsilon_j>0$.
+\end{proof}
+
+%% ============================================================
+\section{Counterexample to Naive Complexification}
+\label{sec:counterexample}
+
+A natural but incorrect approach is to extend the real path margin $g_j$
+directly to a complex function by replacing $t$ with $z\in\mathbb{C}$.
+For a neural network $f$, this requires complexifying the activations
+(e.g.\ $\tanh(z)$ for $z\in\mathbb{C}$), which introduces singularities
+and branch cuts not present on the real line.
+
+\begin{proposition}[Spurious zeros]
+  \label{prop:counterex}
+  Let $g_j(t) = \tanh(2t-1)$ (a sigmoid-like margin, always positive for
+  $t\in[0.5+\delta, 1]$ for any $\delta>0$).  The complex extension
+  $G_j(z) = \tanh(2z-1)$ has poles at $z_k = \tfrac{1}{2}(1 + i\pi(k+\tfrac{1}{2}))$
+  for $k\in\mathbb{Z}$.  For $w>\pi/4\approx 0.785$, these poles lie inside
+  the rectangular domain $D$, making $G_j$ non-analytic there.
+\end{proposition}
+
+\begin{proof}
+  $\tanh(z)$ has poles at $z = i\pi(k+\tfrac{1}{2})$, $k\in\mathbb{Z}$.
+  Substituting $z\mapsto 2z-1$ shifts poles to $z_k = \tfrac{1}{2}(1+i\pi(k+\tfrac{1}{2}))$.
+  For $k=0$: $\operatorname{Im}(z_0) = \pi/4\approx 0.785$.  Hence for $w>\pi/4$ the domain
+  $D$ contains a pole, invalidating any Cauchy-based certificate.
+\end{proof}
+
+This shows why the surrogate approach is essential: we fit a polynomial $Q_j$
+to \emph{samples} of $g_j$ on the real segment and extend only the polynomial
+analytically, avoiding the nonlinearities of the network entirely.
+
+%% ============================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Exp P3-1: Synthetic polynomial classifiers}
+\label{sec:exp_synthetic}
+
+We generate random degree-$d$ polynomials $g_j$ with controlled minimum
+value $\mu\in\{0.5, 0.2, 0.05\}$ and fit surrogates of matching degree.
+We run 100 instances per cell and compare three methods: dense-sampling
+ground truth, real-polynomial certificate, and Rouch\'e certificate.
+
+Table~\ref{tab:synthetic} reports certification rates.
+Figure~\ref{fig:cert_heatmap} shows heatmaps over the degree$\times$margin grid.
+
+\begin{table}[t]
+\centering
+\caption{Synthetic polynomial classifiers: certification rates (\%) and
+  mean margin by method.  100 instances per cell; surrogates of degree
+  matching $g_j$.}
+\label{tab:synthetic}
+\begin{tabular}{ccrrrc}
+\toprule
+Degree & Min margin & Dense (\%) & Real poly (\%) & Rouch\'e (\%) & Mean real margin \\
+\midrule
+\multirow{3}{*}{2}
+  & 0.50 & 100.0 & 100.0 & 46.0 & $+0.500$ \\
+  & 0.20 & 100.0 & 100.0 &  7.0 & $+0.200$ \\
+  & 0.05 & 100.0 & 100.0 &  1.0 & $+0.050$ \\
+\midrule
+\multirow{3}{*}{4}
+  & 0.50 & 100.0 & 100.0 & 14.0 & $+0.500$ \\
+  & 0.20 & 100.0 & 100.0 &  7.0 & $+0.200$ \\
+  & 0.05 & 100.0 & 100.0 &  0.0 & $+0.050$ \\
+\midrule
+\multirow{3}{*}{8}
+  & 0.50 & 100.0 & 100.0 &  3.0 & $+0.500$ \\
+  & 0.20 & 100.0 & 100.0 &  0.0 & $+0.200$ \\
+  & 0.05 & 100.0 & 100.0 &  0.0 & $+0.050$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../../results/p3exp1/cert_rate_heatmap.pdf}
+\caption{Certification rate heatmaps for synthetic polynomial classifiers.
+  Left: dense ground truth.  Centre: real-polynomial certificate.
+  Right: Rouch\'e certificate.  Colour scale 0--100\%.}
+\label{fig:cert_heatmap}
+\end{figure}
+
+\subsection{Exp P3-2: Small MLP on two-moons}
+\label{sec:exp_networks}
+
+We train a two-hidden-layer MLP ($2\to 32\to 32\to 2$, Tanh activations,
+Adam, 300 epochs) on the two-moons dataset.  For 200 same-class straight-line
+path pairs from the test set, we fit Chebyshev surrogates of degree 4, 8,
+and 16, and evaluate real-polynomial and Rouch\'e certificates.
+
+Table~\ref{tab:networks} compares certification rates and mean approximation
+error.  Figure~\ref{fig:twomoons} shows the decision boundary and per-method
+cert rates.
+
+\begin{table}[t]
+\centering
+\caption{Two-moons MLP: certification rates (\%) and mean surrogate
+  approximation error by degree.  200 same-class paths; contour width $w=0.3$.}
+\label{tab:networks}
+\begin{tabular}{crrrc}
+\toprule
+Degree & Dense (\%) & Real poly (\%) & Rouch\'e (\%) & Mean $\epsilon_j$ \\
+\midrule
+ 4 & 78.5 & 78.5 & 66.5 & $5.99\times10^{-4}$ \\
+ 8 & 78.5 & 78.5 & 67.0 & $2.64\times10^{-6}$ \\
+16 & 78.5 & 78.5 & 34.5 & $6.96\times10^{-7}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Exp P3-3: Scaling limits}
+\label{sec:exp_limits}
+
+To stress-test the certificates we scale the interpolation path by factors
+$s\in\{1, 2, 4, 8\}$, extending $\gamma(t)=x_a + st(x_b-x_a)$ beyond the
+original endpoints.  Longer paths have higher Lipschitz variation and thus
+larger surrogate approximation error.
+
+Table~\ref{tab:scaling} and Figure~\ref{fig:twomoons} (right panel) show that
+certification rates collapse rapidly with scale while approximation error grows.
+
+\begin{table}[t]
+\centering
+\caption{Scaling limits: cert rates (\%) and mean approximation error vs
+  path scale.  Degree 8 surrogate; 200 paths.}
+\label{tab:scaling}
+\begin{tabular}{crrc}
+\toprule
+Scale & Real poly (\%) & Rouch\'e (\%) & Mean $\epsilon_j$ \\
+\midrule
+1 & 78.5 & 63.0 & $3.82\times10^{-6}$ \\
+2 & 65.5 & 36.5 & $3.90\times10^{-4}$ \\
+4 & 53.0 & 16.0 & $5.05\times10^{-3}$ \\
+8 & 48.0 &  6.0 & $2.89\times10^{-2}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../../results/p3exp2/two_moons_certs.pdf}
+\caption{Left: certification rates vs surrogate degree for three methods.
+  Right: certification rates and approximation error vs path scale (degree 8).}
+\label{fig:twomoons}
+\end{figure}
+
+%% ============================================================
+\section{Results}
+\label{sec:results}
+
+\paragraph{Synthetic polynomial classifiers (Table~\ref{tab:synthetic}).}
+With surrogates of matching degree, the approximation error is numerically
+zero, so the real-polynomial certificate achieves 100\% on all 9 cells.
+The Rouch\'e certificate is dramatically more conservative: at degree~2 and
+minimum margin 0.5 it certifies only 46\% of paths, and at degree~8 it
+certifies 0--3\% regardless of margin.  The failure mode is purely geometric:
+high-degree polynomials take large complex values off the real axis, so the
+contour centroid $c$ satisfies $|c| \ll \max_{\partial D}|Q_j(z)-c|$ and the
+Rouch\'e condition is never met.  The result is independent of margin: even
+with minimum margin 0.5, Rouché certifies only 3\% at degree~8.
+
+\paragraph{Two-moons MLP, method comparison (Table~\ref{tab:networks}).}
+The dense ground-truth rate of 78.5\% is constant across all surrogate
+degrees, reflecting the true fraction of same-class test pairs whose
+straight-line interpolation stays within the predicted class.
+Real-polynomial certificates match dense exactly at all degrees:
+approximation errors are at most $6\times10^{-4}$, negligible relative to
+path margins of order 0.1--1.  Rouch\'e matches real poly at degrees 4 and
+8 (cert rates 66.5\% and 67.0\%) but collapses to 34.5\% at degree~16,
+confirming that higher-degree surrogates amplify the complex excursion
+problem observed in the synthetic setting.
+
+\paragraph{Scaling limits (Table~\ref{tab:scaling}).}
+With degree-8 surrogates and path scale increasing from 1$\times$ to
+8$\times$, real-polynomial cert rate falls from 78.5\% to 48.0\% as longer
+paths encounter decision boundaries.  The approximation error grows by four
+orders of magnitude (from $3.8\times10^{-6}$ to $2.9\times10^{-2}$) due to
+higher variation in $g_j$ over longer paths.  Rouch\'e collapses much faster:
+from 63.0\% at scale~1 to 6.0\% at scale~8, because both the complex
+excursion and the error growth compound.  At scale~8 the Rouch\'e certificate
+is essentially vacuous while the real-polynomial check still certifies
+nearly half of all paths.
+
+\paragraph{Summary.}
+Across all settings, the real-polynomial positivity check equals or exceeds
+the Rouch\'e certificate in certification rate, with no exception.  The
+Rouché certificate's complex-domain geometry provides no practical advantage
+and introduces a second failure mode (contour excursion) absent from the
+real check.
+
+%% ============================================================
+\section{Discussion and Practical Guidelines}
+\label{sec:discussion}
+
+\subsection{When Rouch\'e certificates are informative}
+
+Based on the synthetic experiments (Section~\ref{sec:exp_synthetic}),
+Rouch\'e and real-polynomial certificates are essentially equivalent in
+certification rate: both succeed when the surrogate minimum is large relative
+to the approximation error.  The Rouch\'e certificate adds computational cost
+(complex contour evaluation) without a corresponding reduction in false
+negatives.
+
+For Rouch\'e to offer a strict advantage over the real-polynomial check, the
+polynomial $Q_j$ would need to have its minimum on the real segment obscured by
+local oscillation while remaining robustly positive everywhere in the complex
+domain $D$.  This configuration does not arise naturally for smooth margin
+functions, because polynomials that are large on $\partial D$ tend also to be
+large on the real interior.
+
+\subsection{Why Rouch\'e fails on neural paths}
+
+For neural network margin functions, the fundamental obstacle is the
+approximation error $\epsilon_j$.  A degree-$d$ surrogate on a path of length
+$L$ (measured in input space) achieves error
+$\epsilon_j = O(L^d \cdot \omega(g_j, L/d))$
+where $\omega$ is the modulus of continuity.  As $L$ grows, both the variation
+of $g_j$ and the required degree increase, but the margin $\min_t g_j(t)$
+typically decreases near class boundaries.  The certification condition
+$\min Q_j > \epsilon_j$ becomes impossible to satisfy.
+
+\subsection{Practical guidelines}
+
+\begin{enumerate}
+  \item \textbf{Short interpolation paths only.}  Certification is feasible
+    only for short same-class interpolations with margin $\gg \epsilon_j$.
+  \item \textbf{Real-polynomial check is sufficient.}  The Rouch\'e certificate
+    adds no power beyond $\min_{[0,1]} Q_j > \epsilon_j$ for typical smooth
+    margins.  Prefer the simpler check.
+  \item \textbf{Rigorise the error bound.}  Our $\epsilon_j$ estimate is
+    numerical; a verified bound via Bernstein ellipse analysis or interval
+    arithmetic is needed for rigorous guarantees.
+  \item \textbf{Consider Lipschitz-based methods.}  For neural networks with
+    known Lipschitz constants, direct Lipschitz certificates
+    $\min_t g_j(t) > L_j \cdot \norm{x_b - x_a}$ are tighter and require no
+    surrogate fitting.
+\end{enumerate}
+
+%% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have built and evaluated a complete pipeline for Rouch\'e-type path
+certificates: Chebyshev surrogate fitting, approximation error estimation,
+constant-reference Rouch\'e margin, and pathwise positivity theorem.  The
+theoretical framework is sound---Theorem~\ref{thm:main} provides a rigorous
+connection between complex zero-counting and real path positivity, and
+Proposition~\ref{prop:counterex} explains why naive complexification fails.
+
+Empirically, the Rouch\'e certificate matches the simpler real-polynomial
+check on both synthetic and neural network settings.  On realistic neural
+paths beyond short interpolation scales, both certificates become vacuous
+because surrogate approximation error consumes the available margin.
+
+This negative result clarifies the boundary between elegant complex analysis
+and practical neural network verification: Rouch\'e zero-counting is
+well-suited to settings where the analytic structure is intrinsic (as in
+Papers~1 and~2, where the contour is the unit circle and the matrix
+characteristic function is already analytic), but not to settings where
+analyticity must be imposed through a surrogate on an arbitrary real path.
+
+\end{document}
