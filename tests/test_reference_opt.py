@@ -63,3 +63,21 @@ def test_optimise_dlr_reference_margin_not_worse_than_diagonal(diag_stable_8):
     assert dlr_margin > 0.1, (
         f"DLR margin {dlr_margin:.4f} too small"
     )
+
+
+def test_optimise_dlr_reference_improves_over_scalar_on_dlr_matrix():
+    """DLR reference beats scalar on a matrix with genuine low-rank off-diagonal structure."""
+    from roche.matrices import diagonal_plus_low_rank
+    from roche.reference import scalar_reference
+    rng = np.random.default_rng(5)
+    a = diagonal_plus_low_rank(6, radius=0.85, rank=1, rng=rng, low_rank_scale=0.20)
+
+    a0_scalar = scalar_reference(6, 0.5)
+    scalar_margin = certify_on_unit_circle(a, a0_scalar, 128, "resolvent").min_margin
+
+    a0_dlr, _ = optimise_dlr_reference(a, rank=1, n_steps=120, seed=0)
+    dlr_margin = certify_on_unit_circle(a, a0_dlr, 128, "resolvent").min_margin
+
+    assert dlr_margin > scalar_margin, (
+        f"DLR margin {dlr_margin:.4f} not better than scalar {scalar_margin:.4f}"
+    )

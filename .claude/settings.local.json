@@ -5,7 +5,30 @@
       "Bash(tee results_exp1.log)",
       "Bash(tee results_exp2.log)",
       "Bash(tee results_exp3.log)",
-      "Bash(tee results_exp4.log)"
+      "Bash(tee results_exp4.log)",
+      "PowerShell(Get-Process *)",
+      "Bash(pdflatex -interaction=nonstopmode main.tex)",
+      "PowerShell(Stop-Process *)",
+      "Bash(pdflatex -interaction=nonstopmode -output-directory papers/paper1 papers/paper1/main.tex)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\begin{\" papers/paper2/main.tex)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\end{\" papers/paper2/main.tex)",
+      "PowerShell(pdflatex *)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche status)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche add src/roche/surrogate.py src/roche/path_cert.py experiments/path_cert_synthetic.py experiments/path_cert_networks.py papers/paper3/main.tex)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche commit -m ' *)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche log --oneline -6)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche tag -a paper-series-complete -m 'Three-paper Rouche stability certificate series complete *)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche tag)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche push)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche push origin paper-series-complete)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche add README.md pyproject.toml)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche commit -m 'docs: update README and pyproject.toml for completed three-paper series *)",
+      "Bash(git -C \"C:/Users/paul_/PROJECTS/roche\" add papers/paper1/main.tex)",
+      "Bash(git -C C:/Users/paul_/PROJECTS/roche commit -m 'fix: correct Paper 1 abstract/conclusion re resolvent vs determinant performance *)",
+      "Bash(git *)"
     ]
   }
 }

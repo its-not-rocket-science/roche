@@ -131,3 +131,30 @@ def test_train_diagonal_ssm_adam_unconstrained_accepts_near_boundary_init():
         seed=0, constrained=False, init_log_r=float(np.log(0.96)),
     )
     assert a_mat.shape == (4, 4)
+
+
+def test_schur_stable_trainer_always_stable_at_high_lr():
+    """schur_stable=True guarantees rho < 1 by construction regardless of lr."""
+    rng = np.random.default_rng(7)
+    u = generate_ar_sequence([0.5, -0.1], 200, 0.1, rng)
+    target = np.roll(u, -1); target[-1] = 0.0
+    a_mat, _, _ = train_diagonal_ssm_adam(
+        u, target, n_state=4, n_epochs=30, lr=0.1,
+        seed=0, constrained=False, init_log_r=float(np.log(0.96)),
+        schur_stable=True,
+    )
+    rho = float(np.max(np.abs(np.linalg.eigvals(a_mat))))
+    assert rho < 1.0, f"schur_stable trainer produced rho={rho:.4f} >= 1"
+
+
+def test_rho_history_out_has_correct_length():
+    rng = np.random.default_rng(3)
+    u = generate_ar_sequence([0.4, -0.2], 150, 0.1, rng)
+    target = np.roll(u, -1); target[-1] = 0.0
+    rho_hist: list[float] = []
+    train_diagonal_ssm_adam(
+        u, target, n_state=4, n_epochs=25, lr=1e-3, seed=0,
+        rho_history_out=rho_hist,
+    )
+    assert len(rho_hist) == 25
+    assert all(r > 0 for r in rho_hist)

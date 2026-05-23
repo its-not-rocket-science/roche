@@ -229,6 +229,7 @@ class _DiagonalSSM(nn.Module):
         seed: int = 0,
         constrained: bool = True,
         init_log_r: float | None = None,
+        schur_stable: bool = False,
     ) -> None:
         super().__init__()
         rng = np.random.default_rng(seed)
@@ -247,11 +248,15 @@ class _DiagonalSSM(nn.Module):
         self.c_im = nn.Parameter(c_im)
         self.d = nn.Parameter(torch.zeros(1, dtype=torch.float64))
         self.constrained = constrained
+        self.schur_stable = schur_stable
 
     @property
     def a_diag(self) -> torch.Tensor:
         """Complex diagonal eigenvalues."""
-        if self.constrained:
+        if self.schur_stable:
+            # sigmoid maps R -> (0,1); multiply by (1-eps) gives rho < 0.98 always
+            radii = torch.sigmoid(self.log_r) * (1.0 - 0.02)
+        elif self.constrained:
             radii = torch.exp(torch.clamp(self.log_r, -10.0, 1.5))
         else:
             radii = torch.exp(self.log_r)   # unconstrained: can exceed 1
@@ -287,14 +292,21 @@ def train_diagonal_ssm_adam(
     seed: int = 0,
     constrained: bool = True,
     init_log_r: float | None = None,
+    schur_stable: bool = False,
+    rho_history_out: list | None = None,
 ) -> tuple[ComplexMatrix, list[float], list[float]]:
     """Train a diagonal complex SSM via Adam with an optional stability regulariser.
 
     constrained=False: eigenvalue radii unconstrained (can exceed 1 without regulariser).
+    schur_stable=True: sigmoid parameterisation guarantees rho < 0.98 by construction.
     init_log_r: initial log-radius value (e.g. log(0.96) ≈ -0.041 for near-boundary init).
+    rho_history_out: if provided, append per-epoch spectral radius (for trajectory figures).
     Returns (A_matrix, task_loss_history, reg_loss_history).
     """
-    model = _DiagonalSSM(n_state, seed=seed, constrained=constrained, init_log_r=init_log_r)
+    model = _DiagonalSSM(
+        n_state, seed=seed, constrained=constrained,
+        init_log_r=init_log_r, schur_stable=schur_stable,
+    )
     u_t = torch.tensor(u_seq, dtype=torch.float64)
     target_t = torch.tensor(target_seq, dtype=torch.float64)
     optimiser = torch.optim.Adam(model.parameters(), lr=lr)
@@ -315,5 +327,8 @@ def train_diagonal_ssm_adam(
         optimiser.step()
         task_hist.append(task_loss.item())
         reg_hist.append(reg_loss.item())
+        if rho_history_out is not None:
+            with torch.no_grad():
+                rho_history_out.append(float(torch.max(torch.abs(model.a_diag)).item()))
 
     return model.transition_matrix(), task_hist, reg_hist

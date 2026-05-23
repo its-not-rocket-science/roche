@@ -68,7 +68,7 @@ def _cert_rate(a_matrices):
     return 100.0 * certified / len(a_matrices)
 
 
-def run_method(name: str, reg_fn) -> dict:
+def run_method(name: str, reg_fn, schur_stable: bool = False) -> dict:
     rho_vals, stable_count, a_matrices = [], 0, []
     for seed in range(N_SEEDS):
         u, target = _ar_task(seed)
@@ -82,6 +82,7 @@ def run_method(name: str, reg_fn) -> dict:
             seed=seed,
             constrained=False,
             init_log_r=INIT_LOG_R,
+            schur_stable=schur_stable,
         )
         if not np.isfinite(a_mat).all():
             rho = float("inf")
@@ -91,7 +92,8 @@ def run_method(name: str, reg_fn) -> dict:
         if rho < 1.0:
             stable_count += 1
         a_matrices.append(a_mat)
-        print(f"  {name:16s} seed={seed}  rho={rho:.4f}  stable={rho<1.0}", flush=True)
+        stable = rho < 1.0
+        print(f"  {name:20s} seed={seed}  rho={rho:.4f}  stable={stable}", flush=True)
 
     stable_mats = [
         m for m in a_matrices
@@ -110,8 +112,21 @@ def run_method(name: str, reg_fn) -> dict:
     }
 
 
+def run_trajectory(name: str, reg_fn, schur_stable: bool = False, seed: int = 0) -> list[float]:
+    """Return per-epoch spectral radius for one seed (for trajectory figure)."""
+    u, target = _ar_task(seed)
+    rho_hist: list[float] = []
+    train_diagonal_ssm_adam(
+        u, target,
+        n_state=N_STATE, n_epochs=N_EPOCHS, lr=LR,
+        reg_weight=REG_WEIGHT, regulariser=reg_fn,
+        seed=seed, constrained=False, init_log_r=INIT_LOG_R,
+        schur_stable=schur_stable, rho_history_out=rho_hist,
+    )
+    return rho_hist
+
+
 def main():
-    rng0 = np.random.default_rng(0)
     u0, target0 = _ar_task(0)
     # Build contour barrier from eig-shrunk reference on seed-0 task
     a_init_mat, _, _ = train_diagonal_ssm_adam(
@@ -125,49 +140,52 @@ def main():
     spectral_fn = functools.partial(spectral_penalty, margin=REG_MARGIN)
     lyapunov_fn = functools.partial(lyapunov_penalty, margin=REG_MARGIN)
     methods = [
-        ("none",           None),
-        ("spectral",       spectral_fn),
-        ("lyapunov",       lyapunov_fn),
-        ("contour_barrier",contour_fn),
+        ("none",              None,         False),
+        ("spectral",          spectral_fn,  False),
+        ("lyapunov",          lyapunov_fn,  False),
+        ("contour_barrier",   contour_fn,   False),
+        ("constrained_schur", None,         True),
     ]
 
     rows = []
-    for name, reg_fn in methods:
+    for name, reg_fn, schur_stable in methods:
         print(f"\n{name}", flush=True)
-        rows.append(run_method(name, reg_fn))
+        rows.append(run_method(name, reg_fn, schur_stable))
 
     # Print table
     print()
-    hdr = f"{'method':18s}  {'stable%':>8}  {'mean_rho*':>9}  {'diverged':>8}  {'cert%_stable':>13}"
+    hdr = f"{'method':22s}  {'stable%':>8}  {'mean_rho*':>9}  {'diverged':>8}  {'cert%_stable':>13}"
     print(hdr)
     print("=" * len(hdr))
     for r in rows:
         print(
-            f"{r['method']:18s}  {r['stable%']:>8.1f}  {r['mean_rho']:>9.4f}"
+            f"{r['method']:22s}  {r['stable%']:>8.1f}  {r['mean_rho']:>9.4f}"
             f"  {r['n_diverged']:>8d}  {r['cert%_stable']:>13.1f}"
         )
     print("  * mean_rho excludes diverged (NaN/inf) runs")
 
     # Figure: spectral radius distribution per method
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(9, 4))
     labels = [r["method"] for r in rows]
     data   = [r["rho_vals"] for r in rows]
     ax.boxplot(data, labels=labels)
     ax.axhline(1.0, color="r", linestyle="--", linewidth=1, label="unit circle")
     ax.set_ylabel("final spectral radius ρ")
     ax.set_title(f"Unconstrained SSM (lr={LR}, init ρ=0.96, {N_SEEDS} seeds)")
+    ax.tick_params(axis="x", rotation=15)
     ax.legend()
     fig.tight_layout()
     fig.savefig(RESULTS_DIR / "rho_distribution.pdf", bbox_inches="tight")
     plt.close(fig)
 
-    # Figure: rho trajectories not available (only final), so bar chart of stable%
-    fig2, axes2 = plt.subplots(1, 2, figsize=(9, 4))
+    # Figure: stable% and cert% bar chart
+    fig2, axes2 = plt.subplots(1, 2, figsize=(10, 4))
     ax1, ax2 = axes2
     stable_rates = [r["stable%"] for r in rows]
     cert_rates   = [r["cert%_stable"] for r in rows]
+    colours = ["#d62728", "#d62728", "#ff7f0e", "#d62728", "#2ca02c"]
     x = np.arange(len(labels))
-    ax1.bar(x, stable_rates, color=["#d62728", "#2ca02c", "#2ca02c", "#2ca02c"])
+    ax1.bar(x, stable_rates, color=colours[:len(labels)])
     ax1.set_xticks(x); ax1.set_xticklabels(labels, rotation=15, ha="right")
     ax1.set_ylabel("stable runs (%)"); ax1.set_ylim(0, 110)
     ax1.set_title("Stability rate")
@@ -178,6 +196,26 @@ def main():
     fig2.tight_layout()
     fig2.savefig(RESULTS_DIR / "stability_and_cert.pdf", bbox_inches="tight")
     plt.close(fig2)
+
+    # Figure: rho trajectory for one representative seed
+    print("\nRunning trajectory (seed 0) for 3 methods...", flush=True)
+    traj_specs = [
+        ("none",              None,         False, "C0", "solid"),
+        ("lyapunov",          lyapunov_fn,  False, "C2", "dashed"),
+        ("constrained_schur", None,         True,  "C4", "dotted"),
+    ]
+    fig3, ax3 = plt.subplots(figsize=(8, 4))
+    for tname, tfn, tschur, color, ls in traj_specs:
+        hist = run_trajectory(tname, tfn, tschur, seed=0)
+        ax3.plot(hist, label=tname, color=color, linestyle=ls)
+    ax3.axhline(1.0, color="r", ls="--", lw=1.2, label="unit circle")
+    ax3.set_xlabel("Epoch")
+    ax3.set_ylabel("Spectral radius ρ")
+    ax3.set_title(f"Rho trajectory (seed 0, lr={LR}, init ρ=0.96)")
+    ax3.legend(fontsize=8)
+    fig3.tight_layout()
+    fig3.savefig(RESULTS_DIR / "rho_trajectory.pdf", bbox_inches="tight")
+    plt.close(fig3)
 
     print(f"\nFigures saved to {RESULTS_DIR}/")
 
