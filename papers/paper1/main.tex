@@ -36,25 +36,34 @@ A Rouch\'e--Perturbation Framework for State-Space Models}
 \maketitle
 
 \begin{abstract}
-Learned state-space models rely on stable transition dynamics for reliable
-long-horizon prediction and gradient-stable training.  We develop
-contour-based \emph{sufficient} certificates for Schur stability of learned
-transition matrices using scalar and matrix-valued Rouch\'e-type perturbation
-arguments.  The resulting determinant and resolvent certificates provide
-computable post-hoc stability tests anchored to known-stable reference
-systems.  We derive a deterministic finite-grid verification theorem that
-converts sampled margin checks into continuum guarantees, and study
-reference-selection algorithms that improve certificate margins over naive
-scalar baselines.  Synthetic experiments characterise the conservatism,
-numerical conditioning, and wall-clock scalability of the certificates across
-normal, non-normal, near-defective, block-diagonal, and structured
-state-space transition matrices.  Empirically, the two certificates achieve similar (low) certification
-rates under scalar and random-diagonal references; on dense normal and
-non-normal families the determinant certifies marginally more instances, while
-the resolvent is superior on diagonal-structured matrices and is numerically
-better conditioned at large $n$.  Reference selection is the single largest
-lever for reducing false negatives: diagonal-shrunk references achieve
-100\,\% certification where random-diagonal search achieves $\leq 36$\,\%.
+Learned state-space models require stable transition dynamics for reliable
+long-horizon prediction and gradient-stable training.  We develop contour-based
+\emph{sufficient} certificates for Schur stability of learned transition matrices
+using Rouch\'e-type perturbation arguments applied to characteristic polynomials
+(determinant certificate) and to matrix-valued resolvents (resolvent certificate).
+We derive a deterministic finite-grid verification theorem that converts sampled
+margin checks into continuum guarantees, and study reference-selection algorithms
+that govern certificate quality across scalar, diagonal, and gradient-optimised
+reference families.
+
+The central finding is that both certificate types are mathematically sound but
+practically conservative: under scalar or random-diagonal references fewer than
+$3\%$ of stable instances are certified across all matrix families tested,
+independent of certificate type.  \emph{Reference selection is the dominant
+lever}: diagonal-shrunk references achieve $100\%$ certification on diagonal
+SSMs where random-diagonal search achieves at most $36\%$; gradient-optimised
+references (Paper~2) yield resolvent margins of $+0.99$ on the same instances
+that score $-1.36$ under a scalar reference.
+
+The resolvent certificate is better conditioned numerically and admits a clean
+structural interpretation for diagonal SSMs, but does not universally outperform
+the determinant: on dense normal and non-normal families the determinant certifies
+marginally more instances, while the resolvent is superior on diagonal-structured
+matrices.  The resolvent's avoidance of polynomial ill-conditioning becomes
+decisive only as $n \gtrsim 64$.  We argue that the primary value of these
+certificates lies not in competing with spectral-radius tests, but in providing
+interpretable perturbation margins, structured reference geometry, and diagnostic
+information about which parts of a learned system are closest to instability.
 \end{abstract}
 
 %% ============================================================
@@ -94,6 +103,29 @@ matrix-valued resolvents on the unit circle, it converts the question ``is
 $A$ Schur stable?'' into ``is the perturbation $A - A_0$ small, in an
 appropriate norm, relative to the reference dynamics $A_0$?''
 
+\paragraph{What a contour certificate provides beyond a spectral-radius test.}
+A spectral-radius test tells us \emph{whether} $A$ is stable; a contour
+certificate additionally tells us \emph{how robustly} stable it is relative
+to a reference $A_0$.  Specifically, a positive resolvent margin
+$m_{\mathrm{res}}(A, A_0) > 0$ certifies that $A$ lies inside the stability
+ball of $A_0$: any perturbation $\Delta A$ with $\norm{(zI -
+A_0)^{-1}\Delta A}_2 < m_{\mathrm{res}}$ on the unit circle preserves stability
+(Section~\ref{sec:res}).  This provides:
+\begin{itemize}
+  \item a \emph{perturbation margin} --- how much $A$ can be perturbed before
+    losing stability, measured in the resolvent norm of $A_0$;
+  \item a \emph{structured reference interpretation} --- for diagonal $A_0$
+    the certificate reduces to a per-mode condition (Remark after
+    Theorem~\ref{thm:res}), revealing which eigenvalues are closest to instability;
+  \item \emph{post-hoc certificate geometry} --- the contour margin profile shows
+    \emph{where} on the unit circle the margin is tightest, identifying the
+    dominant instability direction;
+  \item \emph{diagnostic information for non-normal matrices} --- if no diagonal
+    reference certifies a highly non-normal $A$, this reveals that $A$'s
+    pseudospectral sensitivity exceeds what the reference class can represent,
+    motivating structured references beyond the diagonal family.
+\end{itemize}
+
 Our contributions are:
 \begin{enumerate}
   \item A \emph{scalar determinant certificate} (Theorem~\ref{thm:det})
@@ -103,20 +135,25 @@ Our contributions are:
     naturally to the stability radius and small-gain framework.
   \item A \emph{deterministic finite-grid verification theorem}
     (Theorem~\ref{thm:grid}) that upgrades a sampled margin check to a
-    continuum certificate using a Lipschitz bound on the margin function.
-  \item \emph{Reference-selection algorithms} (Section~\ref{sec:refsel}) that
-    maximise certificate margins over structured reference families, reducing
-    false-negative rates substantially over scalar baselines.
-  \item \emph{Synthetic experiments}
-    (Section~\ref{sec:experiments}) characterising conservatism, false-negative
-    rates, numerical conditioning, and wall-clock scalability.
+    grid-verified certificate under a Lipschitz condition on the margin
+    function.  When the Lipschitz constant is estimated numerically (as in
+    our experiments) we call the result \emph{grid-verified with numerical
+    $L$}; a fully rigorous certificate requires an analytically validated
+    $L$~(Section~\ref{sec:grid}).
+  \item \emph{Reference-selection algorithms} (Section~\ref{sec:refsel})
+    including scalar, diagonal-shrunk, random-search, and a forward pointer to
+    gradient-optimised references (Paper~2), with an ablation establishing
+    reference quality as the dominant practical lever.
+  \item \emph{Synthetic experiments} (Section~\ref{sec:experiments})
+    characterising conservatism, false-negative rates, numerical conditioning,
+    wall-clock scalability, and reference-selection impact.
 \end{enumerate}
 
 We emphasise throughout that the certificates are \emph{sufficient but not
 necessary}: a matrix can be Schur stable and yet fail both certificates if no
 close stable reference exists.  The goal is not to replace spectral-radius
 tests but to provide a complementary tool that is interpretable, structured,
-and amenable to post-hoc verification.
+and amenable to post-hoc analysis.
 
 %% ============================================================
 \section{Background}
@@ -309,12 +346,18 @@ Lipschitz condition,
 \]
 \end{proof}
 
-\begin{remark}[Two modes of use]
-Theorem~\ref{thm:grid} requires a \emph{validated} upper bound $L$ on the
-Lipschitz constant.  In the absence of such a bound, the sampled minimum
-$\min_k m(\theta_k) > 0$ is a useful diagnostic (it certifies the matrix
-has no eigenvalue ``visible'' from the grid) but does not constitute a
-mathematical certificate.  Our experiments report both.
+\begin{remark}[Validated vs.\ numerical Lipschitz bound]
+Theorem~\ref{thm:grid} requires a \emph{validated} upper bound $L$.  When
+$L$ is only estimated numerically from the same grid (as in our experiments),
+the resulting certificate is \emph{grid-verified with numerical $L$}: it is
+sound under the numerical estimate but not a mathematical certificate in the
+strict sense.  A fully rigorous certificate requires an analytically validated
+$L$ (e.g.\ via interval arithmetic or pseudospectral radius bounds on
+$\kappa$).  Our experiments report the sampled-only verdict (positive minimum
+margin), the grid-verified verdict (numerical $L$), and distinguish clearly
+between the two.  Table~\ref{tab:discretisation} uses ``grid-ver.'' to denote
+the numerical-$L$ variant and never claims mathematical rigor beyond what the
+numerics support.
 \end{remark}
 
 \paragraph{Lipschitz bound for the resolvent margin.}
@@ -475,20 +518,22 @@ $N = 4096$ grid).  We check:
 \begin{table}[t]
 \centering
 \caption{Experiment~2: Discretisation correctness (Theorem~\ref{thm:grid}).
-For diagonal test cases the grid-verified certificate becomes reliable above a
-threshold grid size $N$ that grows with proximity to the unit circle.
-No false positives occur for either the grid-verified or sampled certificate.
-The two non-diagonal cases (dense normal, Jordan) use a scalar reference
-that is too conservative to certify even on the dense ground-truth grid;
-the certificate correctly withholds certification, confirming that
-conservatism there arises from the reference choice, not the grid
-approximation.
+For diagonal test cases the grid-verified certificate (numerical $L$)
+becomes reliable above a threshold grid size $N$ that grows with proximity
+to the unit circle.  No false positives occur for either the grid-verified or
+sampled certificate.  The two non-diagonal cases (dense normal, Jordan) use a
+scalar reference that is too conservative to certify even on the dense
+ground-truth grid; the certificate correctly withholds certification,
+confirming that conservatism there arises from the reference choice, not the
+grid approximation.
 ($\checkmark$: certifiable with $N=4096$; $\times$: not certifiable;
-``Min $N$ (rig)'': smallest $N$ at which the grid-verified certificate passes.)}
+``Min $N$ (gv)'': smallest $N$ at which the grid-verified certificate
+(numerical $L$) passes; ``FP~(gv)'' / ``FP~(samp)'': false positives for
+grid-verified / sampled-only verdicts.)}
 \label{tab:discretisation}
 \begin{tabular}{lrcccc}
 \toprule
-Case & $\varrho$ & Truth cert & Min $N$ (rig) & FP (rig) & FP (samp) \\
+Case & $\varrho$ & Truth cert & Min $N$ (gv) & FP (gv) & FP (samp) \\
 \midrule
 Diagonal, $\varrho=0.80$ & 0.80 & $\checkmark$ & 16 & 0 & 0 \\
 Diagonal, $\varrho=0.90$ & 0.90 & $\checkmark$ & 32 & 0 & 0 \\
@@ -619,28 +664,142 @@ $n \times n$ systems, giving a dominant cost of $O(K n^3)$ for dense matrices.
 For diagonal $A_0$ the linear solve reduces to $O(Kn)$, and for low-rank
 corrections a Woodbury application adds $O(Kn r^2)$ where $r$ is the rank.
 
+\subsection{Experiment 5: Reference-selection ablation on trained SSMs}
+\label{sec:exp5}
+
+To isolate the impact of reference choice from all other factors, we evaluate
+all four reference families (Section~\ref{sec:refsel}) on the same four trained
+diagonal SSM instances from Experiment~3 ($n=8$, L-BFGS-B, 3000 iterations).
+The gradient-optimised reference uses the Paper~2 optimiser
+(\texttt{roche.reference\_opt.optimise\_diagonal\_reference}: Adam 300 steps,
+lr = 0.05, $K = 256$ contour points).
+
+\begin{table}[t]
+\centering
+\caption{Experiment~5 (reference-selection ablation): resolvent margin
+$m_{\mathrm{res}}$ for four reference methods on the trained diagonal SSMs.
+$\checkmark$ ($\times$): margin $> 0$ ($\leq 0$); bracketed value is
+$m_{\mathrm{res}}$ rounded to three decimal places.
+Gradient-optimised reference uses Paper~2 Adam optimiser, 300 steps.}
+\label{tab:refablation}
+\begin{tabular}{lrcccc}
+\toprule
+Task & $\varrho$ & Scalar & Eig-shrunk & Rand.-search & Grad.-opt \\
+\midrule
+AR(4) long-memory  & 0.589
+  & $\times$ ($-0.843$) & $\checkmark$ ($+0.875$)
+  & $\times$ ($-0.843$) & $\checkmark$ ($+0.992$) \\
+AR(4) hard         & 0.784
+  & $\times$ ($-1.364$) & $\checkmark$ ($+0.733$)
+  & $\times$ ($-0.768$) & $\checkmark$ ($+0.990$) \\
+AR(2) short-memory & 0.628
+  & $\times$ ($-1.029$) & $\checkmark$ ($+0.856$)
+  & $\checkmark$ ($+0.172$) & $\checkmark$ ($+0.992$) \\
+AR(6) oscillatory  & 0.645
+  & $\times$ ($-1.020$) & $\checkmark$ ($+0.846$)
+  & $\times$ ($-0.445$) & $\checkmark$ ($+0.988$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Key findings: the scalar reference fails in every case; the eig-shrunk
+diagonal reference succeeds in every case; random search succeeds only for
+the short-memory model (where eigenvalues are well-separated from the unit
+circle, making random candidates likely to align with the learned phases);
+and the gradient-optimised reference achieves the largest margins of all
+($+0.988$ to $+0.992$), confirming reference quality as the dominant lever.
+The margin improvement from eig-shrunk to gradient-optimised ($+0.875 \to
++0.992$ for AR(4) long-memory, $+0.733 \to +0.990$ for AR(4) hard) confirms
+that even a good diagonal reference leaves room for significant improvement
+via optimisation.
+
+\subsection{Reproducibility}
+\label{sec:repro}
+
+All experiments are reproducible from the repository root:
+
+\begin{description}
+  \item[Exp 1] \texttt{python experiments/synthetic\_certification.py
+    --n 8 --num-matrices 200 --seed 0}\\
+    ($n=8$, $M=200$, $K=512$; approx.\ 2--3~min; outputs to
+    \texttt{results/exp1/})
+  \item[Exp 2] \texttt{python experiments/discretisation\_correctness.py
+    --seed 42}\\
+    (5 test cases, $n=8$; approx.\ 10~s; outputs to \texttt{results/exp2/})
+  \item[Exp 3 \& 5] \texttt{python experiments/trained\_ssm.py
+    --n-state 8 --seed 7}\\
+    (4 AR tasks, $n=8$, 3000 L-BFGS-B iterations; approx.\ 5~min; outputs to
+    \texttt{results/exp3/})
+  \item[Exp 4] \texttt{python experiments/runtime\_scalability.py}\\
+    ($n \in \{4,8,16,32,64,128,256\}$, 3 repeats; approx.\ 30~min; outputs to
+    \texttt{results/exp4/})
+\end{description}
+
+All seeds are fixed; results are deterministic on the same hardware.
+Experiments were run on Windows~10 with Python~3.12, NumPy~2.0, and
+SciPy~1.14.  The gradient-optimised reference (Exp~5) additionally requires
+PyTorch ($\geq 2.0$) for the Paper~2 optimiser.
+
 %% ============================================================
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Stability of recurrent networks and SSMs.}
-Spectral penalties \cite{sedghi2018characterizing}, Lyapunov regularisers,
-and stable parameterisations~\cite{lezcano2019cheap} have all been proposed for
-recurrent networks.  Our certificates are complementary: they are post-hoc
-and do not modify training, but provide interpretable margin information.
+\paragraph{Schur stability criteria.}
+Classical Schur--Cohn conditions~\cite{jury1964inners} provide necessary and
+sufficient algebraic tests for discrete-time polynomial stability, generalising
+the Routh--Hurwitz criterion to the unit-disk setting.  These criteria are
+exact but do not provide perturbation margins or structured interpretability.
+Our certificates are strictly weaker (sufficient only) but directly quantify
+robustness relative to a reference system.
 
 \paragraph{Pseudospectra and stability radii.}
-The stability radius of a matrix under unstructured perturbations equals the
-smallest singular value of the resolvent on the unit circle, and is the
-primary quantity bounded by our Theorem~\ref{thm:res}~\cite{hinrichsen1986stability,trefethen2005spectra}.
-Our certificates provide a computable sufficient condition without requiring
-the full pseudospectral computation.
+The complex stability radius $r_\C(A) = \min_{|z|=1} \sigma_{\min}(zI - A)$
+equals the distance from $A$ to the nearest unstable matrix under unstructured
+perturbations~\cite{hinrichsen1986stability}; full pseudospectral computation
+reveals how this radius varies with perturbation structure~\cite{trefethen2005spectra}.
+Our resolvent certificate is directly related: a positive margin
+$m_{\mathrm{res}}(A, A_0) > 0$ implies that $A$ lies strictly inside the
+stability ball of $A_0$, giving a lower bound on the \emph{relative} stability
+radius with $A_0$ as reference.  The advantage over direct pseudospectral
+computation is that our certificate is a simple sufficient check requiring
+no eigenvalue decomposition of the perturbed system.
+
+\paragraph{Small-gain theorem.}
+The condition $\sup_{|z|=1}\norm{(zI-A_0)^{-1}(A_0-A)} < 1$ is a
+discrete-time small-gain condition: it states that the loop gain of the
+feedback interconnection of $(zI-A_0)^{-1}$ and $(A_0 - A)$ is less than
+one~\cite{desoer1975feedback}.  Our Theorem~\ref{thm:res} is therefore a
+special case of the small-gain theorem applied to the resolvent operator on the
+unit circle.  This connection places our results in the broader framework of
+robust stability analysis for linear time-invariant systems.
+
+\paragraph{Lyapunov certificates.}
+For discrete-time systems, Schur stability is equivalent to existence of a
+positive-definite solution $P \succ 0$ to the discrete Lyapunov equation
+$A^\top P A - P + Q = 0$ for any $Q \succ 0$.  Lyapunov methods provide exact
+stability tests and support training-time regularisation~\cite{sedghi2018characterizing},
+but solving the Lyapunov equation scales as $O(n^3)$ and the resulting
+certificates do not directly quantify perturbation margins in the resolvent
+sense.  Our contour certificates are complementary: they forgo the
+completeness of Lyapunov analysis in exchange for a lightweight post-hoc
+check that additionally provides the margin geometry.
+
+\paragraph{Stable SSM parameterisations.}
+Modern SSM layers (S4~\cite{gu2022s4}, LRU~\cite{smith2023lru},
+Mamba~\cite{gu2023mamba}) enforce stability by design via diagonal or unitary
+reparameterisations.  Orthogonal-constraint methods~\cite{lezcano2019cheap}
+maintain stability on Lie groups during training.  Our certificates are
+post-hoc and apply to \emph{any} trained matrix, complementing both
+constrained architectures (verifying the constraint was respected) and
+unconstrained models (detecting and quantifying potential instability).
 
 \paragraph{Rouch\'e in control and signal processing.}
 Rouch\'e's theorem has been applied to pole-placement certification in
 robust control~\cite{bhattacharyya1995robust} and to zero-counting in filter
 design.  Our contribution is its systematic application to learned transition
-matrices in the SSM setting.
+matrices, including the matrix-valued resolvent extension, the finite-grid
+verification theorem, and a study of reference selection as the primary
+practical bottleneck.
 
 \paragraph{Finite-grid quadrature for contour integrals.}
 The deterministic grid certificate (Theorem~\ref{thm:grid}) is related to
@@ -680,29 +839,35 @@ bounds are possible but unnecessary for the verification purpose here.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We have developed and analysed two Rouch\'e-type contour certificates for
-Schur stability of learned state-space transition matrices.  The resolvent
-certificate is the practically preferred form: it is numerically stable for
-moderate dimensions, connects cleanly to the stability radius and small-gain
-framework, and admits a simple interpretation for diagonal SSMs.  Empirically,
-the two certificates achieve comparable certification rates under scalar and
-random-diagonal references; the determinant certifies marginally more instances
-on dense normal and non-normal families, while the resolvent outperforms on
-diagonal-structured matrices.  The resolvent's theoretical advantage---avoiding
-polynomial ill-conditioning at large $n$---becomes decisive as state dimension
-grows beyond $n \approx 64$.
+Rouch\'e-type contour certificates provide mathematically sound sufficient
+conditions for Schur stability that connect naturally to the stability radius,
+the small-gain theorem, and the pseudospectral geometry of the transition
+matrix.  Their practical usefulness depends almost entirely on reference
+selection: under scalar or random-diagonal references fewer than $3\%$ of
+stable instances are certified across all matrix families tested.  The
+eig-shrunk diagonal reference achieves $100\%$ certification on diagonal SSMs
+and trained diagonal SSMs; gradient-optimised references (Paper~2) further
+improve margins to $+0.99$ on instances that score $-1.36$ under the scalar
+reference.
+
+The resolvent certificate is better conditioned and structurally more
+interpretable than the determinant: it avoids polynomial ill-conditioning at
+large $n$, reduces to a per-mode geometric condition for diagonal $A_0$, and
+connects to the stability radius via the small-gain condition.  It does not,
+however, universally outperform the determinant on certification counts.  On
+dense normal and non-normal families the determinant certifies marginally more
+instances because it is less sensitive to off-diagonal perturbation norms.
+The resolvent's advantage becomes decisive only as $n \gtrsim 64$, where
+polynomial evaluation becomes numerically unreliable.
 
 The deterministic finite-grid theorem converts sampled margin checks into
-mathematical certificates under a Lipschitz condition that can be estimated
-from the same contour grid used for margin evaluation.  Reference selection---
-choosing a stable $A_0$ with small resolvent norm that is close to $A$---is
-the dominant practical lever for reducing false-negative rates.
-
-We view these results as a first step toward a broader framework in which
-complex-analytic tools complement algebraic stability conditions for learned
-dynamical systems.  Training-time analogues (contour barriers, complex-analytic
-Lyapunov functions), structured SSM-specific certificates, and
-pathwise robustness analysis are directions pursued in companion papers.
+grid-verified certificates under a numerically estimated Lipschitz bound;
+a fully rigorous certificate would require an analytically validated
+$\kappa = \sup_{|z|=1}\norm{(zI-A_0)^{-1}}$.  We view these results as a
+foundation for complex-analytic perturbation tools in learned dynamical
+systems: training-time contour barriers, structured non-diagonal references,
+and pathwise robustness certificates are pursued in companion papers of this
+series.
 
 %% ============================================================
 \bibliographystyle{plain}

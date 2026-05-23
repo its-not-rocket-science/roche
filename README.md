@@ -27,10 +27,11 @@ src/roche/
 experiments/
   synthetic_certification.py     # Paper 1, Exp 1: synthetic matrix families
   discretisation_correctness.py  # Paper 1, Exp 2: finite-grid theorem verification
-  trained_ssm.py                 # Paper 1, Exp 3: post-hoc certification of trained SSMs
+  trained_ssm.py                 # Paper 1, Exp 3+5: trained SSMs + reference ablation
   runtime_scalability.py         # Paper 1, Exp 4: wall-time vs matrix size
   reference_quality.py           # Paper 2, Exp 1: reference method comparison
   regulariser_comparison.py      # Paper 2, Exp 2: regulariser comparison on AR tasks
+  unstable_regime.py             # Paper 2, Exp 3: adversarial unconstrained SSM
   path_cert_synthetic.py         # Paper 3, Exp 1: synthetic polynomial classifiers
   path_cert_networks.py          # Paper 3, Exp 2+3: two-moons MLP + scaling limits
 
@@ -47,6 +48,9 @@ results/
 tests/
   test_certificates.py
   test_matrices.py
+  test_new_code.py
+  test_reference_opt.py    # Paper 2: diagonal and DLR reference optimisation
+  test_regularisers.py     # Paper 2: spectral/Lyapunov/contour-barrier penalties
 ```
 
 ## Quick start
@@ -67,17 +71,33 @@ Reproduce all experiments (run from repo root):
 
 ```bash
 # Paper 1
-python experiments/synthetic_certification.py
-python experiments/discretisation_correctness.py
-python experiments/trained_ssm.py
+# Exp 1: certificate geometry, n=8, 200 matrices, K=512 (~2-3 min)
+python experiments/synthetic_certification.py --n 8 --num-matrices 200 --seed 0
+
+# Exp 2: discretisation correctness, ~10 sec
+python experiments/discretisation_correctness.py --seed 42
+
+# Exp 3 + reference ablation (Exp 5 in paper): trained SSMs, ~5 min
+python experiments/trained_ssm.py --n-state 8 --seed 7
+
+# Exp 4: runtime scalability (~30 min)
 python experiments/runtime_scalability.py
 
 # Paper 2
+# Exp 1: reference quality comparison (~5 min)
 python experiments/reference_quality.py
+
+# Exp 2: regulariser comparison on AR tasks (~10 min)
 python experiments/regulariser_comparison.py
 
+# Exp 3: adversarial unconstrained regime (~10 min)
+python experiments/unstable_regime.py
+
 # Paper 3
+# Exp 1: synthetic polynomial classifiers (~5 min)
 python experiments/path_cert_synthetic.py
+
+# Exp 2+3: two-moons MLP + scaling limits (~30 min)
 python experiments/path_cert_networks.py
 ```
 
