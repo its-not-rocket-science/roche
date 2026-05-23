@@ -587,10 +587,15 @@ Output in \texttt{results/p3exp2/}.
 
 We have built and evaluated a complete pipeline for Rouch\'e-type path
 certificates: Chebyshev surrogate fitting, approximation error estimation,
-constant-reference Rouch\'e margin, and pathwise positivity theorem.  The
-theoretical framework is sound---Theorem~\ref{thm:main} provides a rigorous
-connection between complex zero-counting and real path positivity, and
+constant-reference Rouch\'e margin, and pathwise positivity theorem.
+Theorem~\ref{thm:main} is \emph{sound}: it provides a rigorous connection
+between complex zero-counting and real path positivity, and
 Proposition~\ref{prop:counterex} explains why naive complexification fails.
+The \emph{experimental certificates}, however, are empirical rather than
+formal: $\epsilon_j$ is a numerical grid estimate, not a verified upper bound,
+so Theorem~\ref{thm:main}'s conclusion cannot be invoked to give rigorous
+guarantees on any specific path.  Appendix~\ref{app:rigorous} describes how
+a verified bound would be plugged in.
 
 Empirically, the real-polynomial certificate strictly dominates Rouché
 in every setting tested: on synthetic classifiers with exact surrogates
@@ -607,6 +612,54 @@ well-suited to settings where the analytic structure is intrinsic (as in
 Papers~1 and~2, where the contour is the unit circle and the matrix
 characteristic function is already analytic), but not to settings where
 analyticity must be imposed through a surrogate on an arbitrary real path.
+
+%% ============================================================
+\appendix
+\section{Towards Rigorous Error Bounds}
+\label{app:rigorous}
+
+The gap between Theorem~\ref{thm:main} (sound) and our experiments
+(empirical) is the $\epsilon_j$ estimate.  We sketch two routes to a
+verified bound; either would promote the experimental results to formal
+certificates.
+
+\paragraph{Bernstein ellipse bound.}
+For a function $g_j$ analytic in the Bernstein ellipse
+$\mathcal{E}_\rho = \{z : |z + \sqrt{z^2-1}| \leq \rho\}$, $\rho > 1$,
+with $\sup_{z \in \mathcal{E}_\rho}|g_j(z)| \leq M$, the degree-$n$
+Chebyshev interpolant $Q_j$ satisfies~\cite{trefethen2013approximation}
+\begin{equation}
+  \|g_j - Q_j\|_{[0,1]} \;\leq\; \frac{4M}{\rho^n(\rho - 1)}.
+  \label{eq:bernstein}
+\end{equation}
+For a $\tanh$-MLP the nearest poles of the complexified $g_j$ lie at
+$|\operatorname{Im}| = \pi/4 \approx 0.785$ (Proposition~\ref{prop:counterex}),
+so choosing $\rho < e^{0.785} \approx 2.19$ avoids all poles.  $M$ can
+then be bounded by evaluating the network at complex inputs in
+$\mathcal{E}_\rho$ via complex-arithmetic forward passes and bounding
+output magnitudes, giving a computable $\epsilon_j^{\mathrm{rig}}$ that
+makes~\eqref{eq:bernstein} a true upper bound.
+
+\paragraph{Interval arithmetic bound.}
+Alternatively, $g_j - Q_j$ at any $t \in [0,1]$ can be enclosed
+rigorously by (i)~evaluating $g_j$ with interval-extended inputs
+using an interval arithmetic library (e.g.\ \texttt{mpmath} or
+\texttt{IntervalArithmetic.jl}) and (ii)~subtracting the exactly
+representable polynomial $Q_j(t)$.  The maximum over $[0,1]$ is then
+bounded by refining the interval subdivisions until the enclosure width
+is below the required tolerance.  This approach is network-architecture
+agnostic and handles \texttt{relu}, \texttt{tanh}, and other
+piecewise-smooth activations uniformly.
+
+\paragraph{Cost and scope.}
+Both approaches add $O(K)$ complex or interval-arithmetic network
+evaluations per path, where $K$ is the grid resolution.  The Bernstein
+route is cheaper for smooth activations; the interval route is more
+general.  In either case the rest of the pipeline (surrogate fitting,
+Rouch\'e margin check) is unchanged.  The negative result of this paper
+holds regardless: even with a rigorous $\epsilon_j$, the Rouch\'e
+certificate cannot improve on the real-polynomial check for the reasons
+identified in Sections~\ref{sec:real_baseline}--\ref{sec:excursion}.
 
 %% ============================================================
 \bibliographystyle{plain}
