@@ -30,7 +30,8 @@
       "Bash(git -C C:/Users/paul_/PROJECTS/roche commit -m 'fix: correct Paper 1 abstract/conclusion re resolvent vs determinant performance *)",
       "Bash(git *)",
       "Bash(grep -v \"^$\")",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

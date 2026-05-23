@@ -76,15 +76,15 @@ complementary to---not a replacement for---hard architectural constraints.
 \section{Introduction}
 \label{sec:intro}
 
-Paper~1 established a framework of Rouch\'e-type contour certificates
-for Schur stability of learned transition matrices.  The central
-empirical finding was that both determinant and resolvent certificates
-achieve less than 3\% certification rates when paired with scalar or
-random-diagonal reference matrices, even for matrices the certificates
-could in principle certify.  The bottleneck is the \emph{reference
-matrix} $A_0$: a poorly chosen reference inflates the perturbation
-$\norm{A_0 - A}$ relative to the resolvent margin, rendering the
-certificate vacuous.
+The companion paper established a framework of Rouch\'e-type contour
+certificates for Schur stability of learned transition matrices.  The
+central empirical finding was that both determinant and resolvent
+certificates achieve less than 3\% certification rates when paired with
+scalar or random-diagonal reference matrices, even for matrices the
+certificates could in principle certify.  The bottleneck is the
+\emph{reference matrix} $A_0$: a poorly chosen reference inflates the
+perturbation $\norm{A_0 - A}$ relative to the resolvent margin,
+rendering the certificate vacuous.
 
 Section~\ref{sec:refopt} develops a gradient-based algorithm that maximises
 the sampled minimum resolvent margin $\hat{m}(A, A_0)$ w.r.t.\ diagonal
@@ -104,13 +104,29 @@ Adam step overshoots before any relu gradient fires.  A sigmoid-constrained
 model enforcing $\varrho < 0.98$ by construction achieves $100\%$ stability
 on every seed.
 
-\paragraph{Relation to Paper~1.}
-All certificate definitions, Theorems 1--4, and the Paper~1 codebase
+\paragraph{Relation to companion paper.}
+All certificate definitions, Theorems 1--4, and the companion codebase
 (\texttt{src/roche/}) remain unchanged.  This paper adds
 \texttt{src/roche/reference\_opt.py} (gradient reference optimisation),
 \texttt{src/roche/regularisers.py} (three regulariser implementations),
 and an Adam-based SSM trainer (\texttt{train\_diagonal\_ssm\_adam}) to
 \texttt{src/roche/ssm.py}.
+
+\paragraph{Related work.}
+Diagonal SSM architectures beyond S4~\cite{gu2022s4} and
+LRU~\cite{smith2023simplified} include DSS~\cite{gupta2022dss} and
+S4D~\cite{gu2022s4d}, which show that diagonal parameterisations match
+the sequence-modelling performance of full structured state spaces.
+Hard architectural stability constraints have a long history in
+recurrent networks: unitary RNNs~\cite{arjovsky2016unitary} enforce
+$\varrho(A)=1$ exactly via unitary parameterisation, and
+Lie-group-constrained networks~\cite{lezcano2019cheap} maintain
+stability on matrix manifolds during training.
+Training-time stability regularisation for recurrent
+models is studied in~\cite{miller2019stable,erichson2021lipschitz};
+Experiment~2 here directly compares three regulariser families on
+diagonal SSMs, and Experiment~3 establishes their limits under
+adversarial gradient pressure.
 
 %% ============================================================
 \section{Background}
@@ -125,9 +141,20 @@ The \emph{resolvent margin} at $z = e^{i\theta}$ is
   = 1 - \norm{(zI - A_0)^{-1}(A_0 - A)}_2.
 \]
 When $\min_\theta m_{\mathrm{res}} > 0$, Rouch\'e's theorem guarantees
-$\varrho(A) < 1$.  The finite-grid certificate (Theorem~3 of Paper~1)
-converts a sampled positive minimum margin into a continuum guarantee
-via a Lipschitz criterion.
+$\varrho(A) < 1$.
+
+\begin{theorem}[Resolvent certificate; companion paper, Thm.~2--3]
+\label{thm:res_cert}
+Let $A_0$ be Schur stable.  If
+$\min_\theta m_{\mathrm{res}}(A, A_0, e^{i\theta}) > 0$, then
+$\varrho(A) < 1$.  A finite-grid version converts a sampled positive
+margin $\hat{m}(A, A_0) = \min_k m_{\mathrm{res}}(A, A_0, z_k) > 0$
+over $K$ equispaced contour points into a continuum guarantee via a
+Lipschitz continuity argument on the resolvent.
+\end{theorem}
+
+\noindent This paper takes Theorem~\ref{thm:res_cert} as given and
+focuses on optimising $A_0$ to make $\hat{m}$ as large as possible.
 
 \subsection{The reference selection problem}
 
@@ -136,9 +163,9 @@ Define the \emph{optimal diagonal reference} as
   A_0^* = \argmax_{A_0 \in \mathcal{D}} \min_{\theta} m_{\mathrm{res}}(A, A_0, \theta),
 \]
 where $\mathcal{D}$ is the set of diagonal Schur-stable matrices.
-Paper~1's random search over 50--200 diagonal candidates achieves
-near-zero certification rates for normal and non-normal families,
-motivating a gradient-based approach.
+Random search over 50--200 diagonal candidates (companion paper)
+achieves near-zero certification rates for normal and non-normal
+families, motivating a gradient-based approach.
 
 \subsection{Diagonal fast path}
 
@@ -150,7 +177,8 @@ i.e.\ each row $i$ of $A_0 - A$ is scaled by $1/(z - d_i)$.  The
 2-norm of this product equals the largest singular value of a
 row-scaled matrix, which costs $O(Kn^2)$ in general.  When $A$ is
 \emph{also diagonal} (as in diagonal complex SSMs such as
-S4~\cite{gu2022s4} and LRU~\cite{smith2023simplified}), $A_0 - A$ is
+S4~\cite{gu2022s4}, DSS~\cite{gupta2022dss}, S4D~\cite{gu2022s4d},
+and LRU~\cite{smith2023simplified}), $A_0 - A$ is
 diagonal and the 2-norm reduces to $\max_i \abs{(d_{0,i} -
 a_i)/(z - d_{0,i})}$, costing only $O(Kn)$ with no SVD.
 
@@ -560,7 +588,10 @@ hinges would mitigate the dead-zone but introduce a constant background
 penalty.  The sigmoid-parameterised constrained\_schur model avoids the
 problem entirely: $\varrho < 0.98$ is enforced by the forward pass, not
 by gradient dynamics, and is therefore immune to learning-rate or
-momentum choices.
+momentum choices.  This is analogous to architectural stability
+constraints in unitary RNNs~\cite{arjovsky2016unitary} and
+Lie-group-constrained networks~\cite{lezcano2019cheap}, which enforce
+hard spectral bounds without any regularisation term.
 
 \paragraph{Limitations.}
 The gradient-optimised reference is computed on the \emph{initial}
@@ -581,7 +612,7 @@ $0.98$; tighter or adaptive bounds are an open design choice.
 
 The central message is a separation between soft and hard stability
 guarantees.  Gradient reference optimisation closes the certification gap
-from Paper~1: 100\% certification on diagonal and trained-SSM families,
+from the companion paper: 100\% certification on diagonal and trained-SSM families,
 versus $\leq 36\%$ with random search.  Training-time contour barriers
 preserve larger spectral radii than spectral or Lyapunov penalties, but
 do not improve task loss or resolvent margin---their benefit is
@@ -599,10 +630,36 @@ cannot substitute for each other.
 % Placeholder bibliography entries (replace with refs.bib)
 \begin{thebibliography}{99}
 
+\bibitem{arjovsky2016unitary}
+M.~Arjovsky, A.~Shah, and Y.~Bengio.
+\newblock Unitary evolution recurrent neural networks.
+\newblock In {\em International Conference on Machine Learning}, 2016.
+
+\bibitem{erichson2021lipschitz}
+N.~B. Erichson, O.~Azencot, A.~Queiruga, L.~Hodgkinson, and M.~W. Mahoney.
+\newblock Lipschitz recurrent neural networks.
+\newblock In {\em International Conference on Learning Representations}, 2021.
+
 \bibitem{gu2022s4}
 A.~Gu, K.~Goel, and C.~R\'e.
 \newblock Efficiently modeling long sequences with structured state spaces.
 \newblock In {\em International Conference on Learning Representations}, 2022.
+
+\bibitem{gu2022s4d}
+A.~Gu, A.~Gupta, K.~Goel, and C.~R\'e.
+\newblock On the parameterization and initialization of diagonal state space
+  models.
+\newblock In {\em Advances in Neural Information Processing Systems}, 2022.
+
+\bibitem{gupta2022dss}
+A.~Gupta, A.~Gu, and J.~Berant.
+\newblock Diagonal state spaces are as effective as structured state spaces.
+\newblock In {\em Advances in Neural Information Processing Systems}, 2022.
+
+\bibitem{lezcano2019cheap}
+M.~Lezcano-Casado and D.~Mart\'inez-Rubio.
+\newblock Cheap orthogonal constraints in neural networks.
+\newblock In {\em International Conference on Machine Learning}, 2019.
 
 \bibitem{kingma2015adam}
 D.~P. Kingma and J.~Ba.
