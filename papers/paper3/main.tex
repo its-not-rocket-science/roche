@@ -456,6 +456,59 @@ Scale & Real poly (\%) & Rouch\'e (\%) & Mean $\epsilon_j$ \\
 \label{fig:twomoons}
 \end{figure}
 
+\subsection{Exp P3-4: Verified vs.\ grid error bounds}
+\label{sec:exp_verified}
+
+We measure the gap between the 500-point grid estimate $\hat\epsilon_j^{\rm grid}$
+and the interval-arithmetic verified bound $\epsilon_j^{\rm rig}$
+(Appendix~\ref{app:rigorous}, interval subdivision with $N_{\rm sub}=1000$).
+True margins $g_j$ are random degree-8 polynomials; surrogates are degree~4
+(intentional underfitting to produce non-trivial error).  300 instances per row;
+min margin $\mu$ varied to span tight to comfortable regimes.
+
+\begin{table}[t]
+\centering
+\caption{Exp P3-4: Verified vs.\ grid error bounds.
+  True degree~8 polynomial, degree-4 surrogate, 300 instances per row.
+  $\hat\epsilon^{\rm grid}$: 500-point grid estimate.
+  $\epsilon^{\rm rig}$: interval-arithmetic bound (verified upper bound).
+  ``cert'': real-polynomial certificate rate.
+  ``f.p.'': false-positive rate (grid certifies, verified bound invalidates).
+  ``f.p.\,$\mid$\,grid'': conditional false-positive rate among grid-certified
+  instances.}
+\label{tab:verified}
+\begin{tabular}{crrrrrrrr}
+\toprule
+$\mu$ & $\hat\epsilon^{\rm grid}$ & $\epsilon^{\rm rig}$ & ratio &
+  cert (grid) & cert (rig) & f.p. & f.p.$\mid$grid \\
+\midrule
+0.005 & 0.0116 & 0.0158 & 1.43 & 57.7\% & 34.3\% & 23.3\% & 40.5\% \\
+0.010 & 0.0103 & 0.0142 & 1.48 & 73.3\% & 65.7\% &  7.7\% & 10.5\% \\
+0.020 & 0.0112 & 0.0153 & 1.44 & 86.3\% & 82.0\% &  4.3\% &  5.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../../results/p3exp4/verified_vs_grid.pdf}
+\caption{Exp P3-4: scatter of $\epsilon^{\rm rig}$ vs $\hat\epsilon^{\rm grid}$
+  for all 900 instances (300 per margin setting).  Red points are false positives:
+  grid certifies but verified bound invalidates.  The dashed diagonal marks
+  $\epsilon^{\rm rig} = \hat\epsilon^{\rm grid}$; all points above the diagonal
+  confirm $\epsilon^{\rm rig} \geq \hat\epsilon^{\rm grid}$.}
+\label{fig:verified}
+\end{figure}
+
+Key findings: the verified bound is $1.43$--$1.48\times$ larger than the grid
+estimate across all margin settings.  At tight margins ($\mu=0.005$), $40.5\%$
+of grid-certified instances are false positives---the true worst-case error
+exceeds the surrogate minimum so the certificate is invalid, but the grid
+estimate missed this.  The false-positive rate decreases as the margin grows
+relative to the error ($5.0\%$ at $\mu=0.020$), but does not vanish:
+$\epsilon^{\rm rig}/\hat\epsilon^{\rm grid} \approx 1.44$ persistently, so
+any margin within a factor of $1.44$ of $\hat\epsilon^{\rm grid}$ is at risk.
+
 %% ============================================================
 \section{Results}
 \label{sec:results}
@@ -580,6 +633,16 @@ Test set: 500 samples; 200 same-class (class~0) straight-line path pairs.
 Degrees $\{4,8,16\}$ (P3-2); path scales $\{1,2,4,8\}$ at degree~8 (P3-3).
 Contour width $w=0.3$, 200 contour points.
 Output in \texttt{results/p3exp2/}.
+
+\paragraph{Exp P3-4 (verified error bounds).}
+\begin{verbatim}
+python experiments/path_cert_verified.py
+\end{verbatim}
+Seed: \texttt{RNG\_SEED=99}.
+True degree~8 polynomials; degree-4 surrogate; $N_{\rm nodes}=12$ Chebyshev
+nodes; $N_{\rm sub}=1000$ interval sub-divisions; 300 instances per margin
+setting; min margins $\{0.005, 0.010, 0.020\}$.
+Output in \texttt{results/p3exp4/}.
 
 %% ============================================================
 \section{Conclusion}

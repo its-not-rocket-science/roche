@@ -44,6 +44,49 @@ def approx_error(
     return float(np.max(np.abs(g_vals_fine - q_fine)))
 
 
+def _interval_horner(coeffs: FloatArray, lo: float, hi: float) -> tuple[float, float]:
+    """Evaluate polynomial on interval [lo, hi] via Horner with interval arithmetic.
+
+    Returns (a, b) such that p(t) ∈ [a, b] for all t ∈ [lo, hi].
+    Uses natural interval extension (dependency problem causes O(h) overestimate
+    per evaluation; narrow sub-intervals control this).
+    """
+    a = b = float(coeffs[0])
+    for c in coeffs[1:]:
+        prods = (a * lo, a * hi, b * lo, b * hi)
+        a = min(prods) + float(c)
+        b = max(prods) + float(c)
+    return a, b
+
+
+def verified_error_bound(
+    error_coeffs: FloatArray,
+    n_sub: int = 1000,
+) -> float:
+    """Rigorous upper bound on max|e(t)| for t ∈ [0,1] via interval subdivision.
+
+    Args:
+        error_coeffs: coefficients of e(t) = g_j(t) - Q_j(t), highest degree
+                      first (np.poly1d.coeffs convention).
+        n_sub:        number of uniform sub-intervals; more → tighter bound.
+
+    Returns:
+        eps_rig ≥ max_{t ∈ [0,1]} |e(t)|.
+        (Rigorous modulo IEEE 754 rounding; use directed rounding for full
+        formal correctness.)
+    """
+    h = 1.0 / n_sub
+    eps_rig = 0.0
+    for i in range(n_sub):
+        lo = i * h
+        v_lo, v_hi = _interval_horner(error_coeffs, lo, lo + h)
+        if abs(v_lo) > eps_rig:
+            eps_rig = abs(v_lo)
+        if abs(v_hi) > eps_rig:
+            eps_rig = abs(v_hi)
+    return eps_rig
+
+
 def fit_surrogate(
     g_fn: callable,
     degree: int,
