@@ -88,9 +88,19 @@ where the analytic structure must be \emph{imposed} through a surrogate.
 Our contributions are:
 \begin{enumerate}
   \item A sound theorem (Theorem~\ref{thm:main}) connecting Rouch\'e
-    zero-freeness to pathwise margin positivity via a surrogate error bound.
+    zero-freeness to pathwise margin positivity via a surrogate error bound,
+    with an explicit remark (Remark~\ref{rem:epsilon}) distinguishing the
+    numerical $\epsilon_j$ used in experiments from a verified bound.
+  \item An analysis (Section~\ref{sec:real_baseline}) explaining why the
+    real-polynomial positivity check is tighter, cheaper, and free of the
+    second failure mode that affects Rouch\'e.
+  \item A quantitative account of complex excursion
+    (Section~\ref{sec:excursion}): a degree-8 example where positivity on
+    $[0,1]$ is trivial but contour values span $[\varepsilon, 72]$, making
+    the Rouch\'e condition structurally impossible to satisfy.
   \item A counterexample (Section~\ref{sec:counterexample}) showing that naive
-    analytic continuation can introduce spurious zeros not present on the real path.
+    complexification of network activations destroys analyticity (poles inside
+    $D$), not merely introduces spurious zeros.
   \item Experiments on synthetic polynomial classifiers
     (Section~\ref{sec:exp_synthetic}) showing the real-polynomial certificate
     achieves 100\% with exact surrogates while Rouché fails even then (0--46\%),
@@ -208,6 +218,89 @@ $\partial D$, used as a constant zero-free reference $R_j\equiv c$.
   $g_j(t)\geq Q_j(t)-\epsilon_j>0$.
 \end{proof}
 
+\begin{remark}[Rigorous vs.\ numerical $\epsilon_j$]
+  \label{rem:epsilon}
+  Theorem~\ref{thm:main} requires $\epsilon_j$ to be a \emph{true} upper bound
+  on $\max_{t\in[0,1]}\abs{g_j(t)-Q_j(t)}$.  In our experiments we estimate
+  $\epsilon_j$ by evaluating the error on a 500-point grid; this is a numerical
+  estimate that could underestimate the true maximum between grid points.  The
+  theorem's conclusion therefore constitutes an \emph{empirical} certificate,
+  not a formal proof, until $\epsilon_j$ is replaced by a verified bound (e.g.\
+  via Bernstein ellipse analysis or interval arithmetic).
+\end{remark}
+
+\subsection{Why real-polynomial positivity is the right baseline}
+\label{sec:real_baseline}
+
+The real-polynomial certificate $\min_{t\in[0,1]} Q_j(t) > \epsilon_j$ has
+three properties that collectively make it strictly preferable to the
+Rouch\'e condition for this problem:
+
+\begin{enumerate}
+  \item \textbf{Tightness.}  The condition fails \emph{exactly} when the
+    surrogate minimum falls within the approximation error band.  No geometry
+    of the complex plane is involved; the certificate is tight to the
+    available information.
+
+  \item \textbf{Cheapness.}  Evaluating $Q_j$ on 500 real points costs one
+    polynomial evaluation per point.  The Rouch\'e condition requires
+    evaluating $Q_j$ on 200 complex contour points and computing a contour
+    centroid---strictly more work, with no payoff.
+
+  \item \textbf{Absence of a second failure mode.}  The Rouch\'e condition
+    adds a \emph{complex-excursion} failure: even when $\min_{[0,1]} Q_j
+    \gg \epsilon_j$, the condition fails if $Q_j$ takes large values off the
+    real axis (see Section~\ref{sec:excursion}).  The real check has no such
+    failure mode.
+\end{enumerate}
+
+For the Rouch\'e certificate to ever dominate, the polynomial $Q_j$ would
+have to be positive everywhere on the complex domain $D$ while its real
+minimum is obscured by local oscillation---a configuration that is
+geometrically incompatible with smooth margin functions.  Every polynomial
+that oscillates on the real segment also oscillates in the complex
+neighbourhood, so the Rouch\'e condition is no more informative than the
+real one in practice.
+
+\subsection{Complex excursion: why Rouch\'e fails even on exact surrogates}
+\label{sec:excursion}
+
+Let $D = \{z : -w \leq \operatorname{Re}(z) \leq 1+w,\, \abs{\operatorname{Im}(z)} \leq w\}$
+and consider a polynomial $Q$ that is strictly positive on $[0,1]$.
+The Rouch\'e condition $\abs{c} > \max_{\partial D}\abs{Q(z)-c}$ (where
+$c$ is the contour centroid) requires all values of $Q$ on $\partial D$
+to lie within a disk of radius $|c|$ centred at $c$.  If $Q$ takes both
+near-zero and large values on $\partial D$, no centroid $c$ satisfies
+this, regardless of the real behaviour.
+
+\textbf{Concrete example.}
+Let $Q(t) = (2t-1)^{8} + \varepsilon$ for small $\varepsilon > 0$.
+On $[0,1]$: $\min Q = \varepsilon$ (at $t=\tfrac{1}{2}$), $\max Q = 1+\varepsilon$
+(at $t\in\{0,1\}$).  So $Q$ is strictly positive for any $\varepsilon > 0$
+and the real certificate trivially certifies $g_j > 0$.
+
+At a corner $z = -w + iw$ of the rectangle:
+$2z - 1 = -(1+2w) + 2iw$, so
+\begin{equation}
+  \abs{2z-1}^2 = (1+2w)^2 + (2w)^2 = 1 + 4w + 8w^2.
+\end{equation}
+For $w = 0.3$: $\abs{2z-1} = \sqrt{2.92} \approx 1.709$, giving
+$\abs{Q(z)-\varepsilon} = \abs{2z-1}^{8} \approx 1.709^{8} \approx 72$.
+
+Whatever the centroid $c$, the triangle inequality gives
+$\max_{\partial D}\abs{Q(z)-c} \geq \abs{Q(z_{\text{corner}})} - \abs{c}
+ \approx 72 - \abs{c}$.
+The Rouch\'e condition requires $\abs{c} > 72 - \abs{c}$, i.e.\
+$\abs{c} > 36$.  But at the top-edge midpoint $z = \tfrac{1}{2} + iw$:
+$2z-1 = 2iw$, so $\abs{Q(z)} = (2w)^8 + \varepsilon = 0.0017$, giving
+$\abs{Q(z)-c} \approx \abs{c}$.  This makes $\max\abs{Q-c} \approx \abs{c}$,
+so the condition $\abs{c} > \abs{c}$ is never satisfied.
+
+This shows the failure is structural: the polynomial takes values spanning
+several orders of magnitude on $\partial D$, from $\varepsilon$ to $\approx 72$,
+and no single reference disk can cover this range.  The real-polynomial check
+sees none of this complex-domain geometry and certifies immediately.
+
 %% ============================================================
 \section{Counterexample to Naive Complexification}
 \label{sec:counterexample}
@@ -218,13 +311,14 @@ For a neural network $f$, this requires complexifying the activations
 (e.g.\ $\tanh(z)$ for $z\in\mathbb{C}$), which introduces singularities
 and branch cuts not present on the real line.
 
-\begin{proposition}[Spurious zeros]
+\begin{proposition}[Naive complexification destroys analyticity]
   \label{prop:counterex}
-  Let $g_j(t) = \tanh(2t-1)$ (a sigmoid-like margin, always positive for
-  $t\in[0.5+\delta, 1]$ for any $\delta>0$).  The complex extension
-  $G_j(z) = \tanh(2z-1)$ has poles at $z_k = \tfrac{1}{2}(1 + i\pi(k+\tfrac{1}{2}))$
-  for $k\in\mathbb{Z}$.  For $w>\pi/4\approx 0.785$, these poles lie inside
-  the rectangular domain $D$, making $G_j$ non-analytic there.
+  Let $g_j(t) = \tanh(2t-1)$ (a sigmoid-like margin, positive on $(0,1)$).
+  The naive complex extension $G_j(z) = \tanh(2z-1)$ has poles at
+  $z_k = \tfrac{1}{2}(1 + i\pi(k+\tfrac{1}{2}))$ for $k\in\mathbb{Z}$.
+  For $w>\pi/4\approx 0.785$, these poles lie inside the rectangular domain
+  $D$, making $G_j$ non-analytic in $D$ and invalidating any Cauchy-based
+  zero-counting argument.
 \end{proposition}
 
 \begin{proof}
@@ -234,9 +328,14 @@ and branch cuts not present on the real line.
   $D$ contains a pole, invalidating any Cauchy-based certificate.
 \end{proof}
 
-This shows why the surrogate approach is essential: we fit a polynomial $Q_j$
-to \emph{samples} of $g_j$ on the real segment and extend only the polynomial
-analytically, avoiding the nonlinearities of the network entirely.
+\begin{remark}
+  The failure here is \emph{non-analyticity}, not a spurious zero.  A spurious
+  zero would be a zero of the complexified function not present on the real
+  segment; poles are more severe---they signal that the Cauchy framework does
+  not apply at all.  The polynomial surrogate approach avoids both problems by
+  fitting a globally analytic polynomial to real samples, sidestepping the
+  network nonlinearities entirely.
+\end{remark}
 
 %% ============================================================
 \section{Experiments}
@@ -446,6 +545,37 @@ $\min Q_j > \epsilon_j$ becomes impossible to satisfy.
     $\min_t g_j(t) > L_j \cdot \norm{x_b - x_a}$ are tighter and require no
     surrogate fitting.
 \end{enumerate}
+
+%% ============================================================
+\section{Reproducibility}
+\label{sec:repro}
+
+All experiments are implemented in Python~3 using NumPy and PyTorch
+(MLP only).  Source is in \texttt{src/roche/} (library) and
+\texttt{experiments/} (scripts).
+
+\paragraph{Exp P3-1 (synthetic polynomials).}
+\begin{verbatim}
+python experiments/path_cert_synthetic.py
+\end{verbatim}
+Seed: \texttt{RNG\_SEED=42}.
+Grid: degrees $\{2,4,8\}$, min margins $\{0.5, 0.2, 0.05\}$,
+100 instances per cell.
+Contour width $w=0.3$, 200 contour points.
+Surrogates of degree matching $g_j$ (exact fit, $\epsilon_j \approx 0$).
+Output in \texttt{results/p3exp1/}.
+
+\paragraph{Exp P3-2 and P3-3 (two-moons MLP).}
+\begin{verbatim}
+python experiments/path_cert_networks.py
+\end{verbatim}
+Seed: \texttt{RNG\_SEED=0}.
+MLP: $2{\to}32{\to}32{\to}2$, Tanh activations, Adam ($lr=10^{-3}$),
+300 epochs, trained on 1000 two-moons samples ($\sigma=0.15$).
+Test set: 500 samples; 200 same-class (class~0) straight-line path pairs.
+Degrees $\{4,8,16\}$ (P3-2); path scales $\{1,2,4,8\}$ at degree~8 (P3-3).
+Contour width $w=0.3$, 200 contour points.
+Output in \texttt{results/p3exp2/}.
 
 %% ============================================================
 \section{Conclusion}
