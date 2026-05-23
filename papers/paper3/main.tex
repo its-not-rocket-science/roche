@@ -41,7 +41,8 @@ classifier boundary crossings along input paths is the central question of
 this paper.  Given a continuous path $\gamma:[0,1]\to\mathbb{R}^d$ between
 two same-class inputs, the per-class margin $g_j(t)$ must remain positive
 throughout.  Polynomial surrogates $Q_j$ are fitted by Chebyshev sampling;
-the approximation error $\epsilon_j$ is bounded and Rouch\'e's theorem is
+the approximation error $\epsilon_j$ is estimated numerically on a
+500-point grid (not formally bounded) and Rouch\'e's theorem is
 applied on a rectangular complex domain to certify zero-freeness.
 On synthetic polynomial classifiers with controlled margin and degree, the
 real-polynomial certificate achieves 100\% across all settings (exact
@@ -64,11 +65,14 @@ when complex-analytic certification is not worth attempting close the paper.
 \section{Introduction}
 \label{sec:intro}
 
-Post-hoc certification of neural network behaviour is an active area~\cite{liu2021algorithms}
-with two broad strategies: \emph{bound propagation} (interval arithmetic, abstract
-interpretation) and \emph{sampling with verification} (Lipschitz bounds,
-Lyapunov methods).  A less-explored direction asks whether classical
-complex analysis---specifically Rouch\'e's theorem on zero-counting---can
+Post-hoc certification of neural network behaviour is an active
+area~\cite{liu2021algorithms} with several main approaches:
+\emph{constraint-based formal verification}~\cite{katz2017reluplex},
+\emph{bound propagation} and abstract
+interpretation~\cite{singh2019abstract}, and Lipschitz-based and
+smoothing methods~\cite{weng2018evaluating,cohen2019certified}.
+A less-explored direction asks whether classical complex
+analysis---specifically Rouch\'e's theorem on zero-counting---can
 provide certificates for the absence of class-boundary crossings along
 continuous input paths.
 
@@ -104,7 +108,11 @@ MLP experiments (Section~\ref{sec:exp_networks}) confirm that Rouch\'e offers
 no improvement over the real-polynomial check and that certification collapses
 with path length for both methods.  Practical guidelines on when
 complex-analytic path certification is not worth attempting close the paper in
-Section~\ref{sec:discussion}.
+Section~\ref{sec:discussion}.  \emph{This is a diagnostic negative-results
+paper:} we find no setting in which Rouch\'e certificates outperform the
+simpler real-polynomial check, and we characterise the geometric reason for
+this failure.  The results do not constitute formal verification because
+$\epsilon_j$ is estimated rather than rigorously bounded.
 
 %% ============================================================
 \section{Background and Setup}
@@ -607,10 +615,27 @@ analyticity must be imposed through a surrogate on an arbitrary real path.
 % Placeholder bibliography entries (replace with refs.bib)
 \begin{thebibliography}{99}
 
+\bibitem{cohen2019certified}
+J.~M. Cohen, E.~Rosenfeld, and J.~Z. Kolter.
+\newblock Certified adversarial robustness via randomized smoothing.
+\newblock In {\em International Conference on Machine Learning}, 2019.
+
+\bibitem{katz2017reluplex}
+G.~Katz, C.~Barrett, D.~L. Dill, K.~Julian, and M.~J. Kochenderfer.
+\newblock Reluplex: An efficient {SMT} solver for verifying deep neural
+  networks.
+\newblock In {\em Computer Aided Verification}, 2017.
+
 \bibitem{liu2021algorithms}
 C.~Liu, T.~Arnon, C.~Lazarus, C.~Strong, C.~Barrett, and M.~J. Kochenderfer.
 \newblock Algorithms for verifying deep neural networks.
 \newblock {\em Foundations and Trends in Optimization}, 4(3--4):244--404, 2021.
+
+\bibitem{singh2019abstract}
+G.~Singh, T.~Gehr, M.~P\"uschel, and M.~Vechev.
+\newblock An abstract domain for certifying neural networks.
+\newblock {\em Proceedings of the ACM on Programming Languages}, 3(POPL):1--30,
+  2019.
 
 \bibitem{trefethen2013approximation}
 L.~N. Trefethen.
