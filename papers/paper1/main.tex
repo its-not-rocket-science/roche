@@ -52,8 +52,9 @@ $3\%$ of stable instances are certified across all matrix families tested,
 independent of certificate type.  \emph{Reference selection is the dominant
 lever}: diagonal-shrunk references achieve $100\%$ certification on diagonal
 SSMs where random-diagonal search achieves at most $36\%$; gradient-optimised
-references (Paper~2) yield resolvent margins of $+0.99$ on the same instances
-that score $-1.36$ under a scalar reference.
+references yield resolvent margins of $+0.99$ on the same instances
+that score $-1.36$ under a scalar reference
+(Experiment~5; method detailed in companion work).
 
 The resolvent certificate is better conditioned numerically and admits a clean
 structural interpretation for diagonal SSMs, but does not universally outperform
@@ -141,9 +142,9 @@ Our contributions are:
     $L$}; a fully rigorous certificate requires an analytically validated
     $L$~(Section~\ref{sec:grid}).
   \item \emph{Reference-selection algorithms} (Section~\ref{sec:refsel})
-    including scalar, diagonal-shrunk, random-search, and a forward pointer to
-    gradient-optimised references (Paper~2), with an ablation establishing
-    reference quality as the dominant practical lever.
+    including scalar, diagonal-shrunk, random-search, and gradient-optimised
+    (Experiment~5), with an ablation establishing reference quality as the
+    dominant practical lever.
   \item \emph{Synthetic experiments} (Section~\ref{sec:experiments})
     characterising conservatism, false-negative rates, numerical conditioning,
     wall-clock scalability, and reference-selection impact.
@@ -414,15 +415,15 @@ Sample random diagonal stable matrices $A_0 = \mathrm{diag}(r_i e^{i\phi_i})$
 with $r_i \sim \mathrm{Uniform}(0, 0.95)$ and $\phi_i$ random, evaluate the
 margin, keep the best.  Inexpensive and often effective for diagonal-structured $A$.
 
-\paragraph{Gradient-based optimisation (Paper~2).}
-Gradient-based optimisation of $\min_\theta m_{\mathrm{res}}(A, A_0, \theta)$
-with respect to diagonal $A_0$ is studied in Paper~2 of this series.
-Adam-based reference optimisation (300 steps, softmin surrogate) achieves
-100\,\% post-hoc certification for diagonal and trained-SSM families, up from
-$\leq 36$\,\% with random search, confirming reference selection as the
-dominant bottleneck.  Non-normal and Jordan families remain uncertifiable with
-any diagonal reference, motivating the contour-barrier training regulariser
-also introduced in Paper~2.
+\paragraph{Gradient-based optimisation.}
+The max-min problem in Section~\ref{sec:refsel} is amenable to direct
+gradient optimisation: parameterise $A_0 = \mathrm{diag}(r_i e^{i\phi_i})$
+with $r_i = \sigma(\ell_i)(1-\varepsilon)$ and maximise a softmin surrogate
+of $\min_\theta m_{\mathrm{res}}$ via Adam.  We include a preliminary
+demonstration in Experiment~5, showing 100\,\% post-hoc certification for
+diagonal and trained-SSM families (up from $\leq 36\%$ with random search).
+Full algorithmic development, comparison with other reference families, and
+training-time contour barriers are deferred to companion work.
 
 %% ============================================================
 \section{Experiments}
@@ -670,9 +671,10 @@ corrections a Woodbury application adds $O(Kn r^2)$ where $r$ is the rank.
 To isolate the impact of reference choice from all other factors, we evaluate
 all four reference families (Section~\ref{sec:refsel}) on the same four trained
 diagonal SSM instances from Experiment~3 ($n=8$, L-BFGS-B, 3000 iterations).
-The gradient-optimised reference uses the Paper~2 optimiser
-(\texttt{roche.reference\_opt.optimise\_diagonal\_reference}: Adam 300 steps,
-lr = 0.05, $K = 256$ contour points).
+The gradient-optimised reference uses an Adam-based diagonal reference
+optimiser (\texttt{roche.reference\_opt.optimise\_diagonal\_reference}:
+Adam 300 steps, lr = 0.05, $K = 256$ contour points; method described
+in companion work).
 
 \begin{table}[t]
 \centering
@@ -680,7 +682,8 @@ lr = 0.05, $K = 256$ contour points).
 $m_{\mathrm{res}}$ for four reference methods on the trained diagonal SSMs.
 $\checkmark$ ($\times$): margin $> 0$ ($\leq 0$); bracketed value is
 $m_{\mathrm{res}}$ rounded to three decimal places.
-Gradient-optimised reference uses Paper~2 Adam optimiser, 300 steps.}
+Gradient-optimised reference: Adam diagonal optimiser, 300 steps
+(companion work).}
 \label{tab:refablation}
 \begin{tabular}{lrcccc}
 \toprule
@@ -738,7 +741,7 @@ All experiments are reproducible from the repository root:
 All seeds are fixed; results are deterministic on the same hardware.
 Experiments were run on Windows~10 with Python~3.12, NumPy~2.0, and
 SciPy~1.14.  The gradient-optimised reference (Exp~5) additionally requires
-PyTorch ($\geq 2.0$) for the Paper~2 optimiser.
+PyTorch ($\geq 2.0$) for the gradient-optimised reference (Exp~5).
 
 %% ============================================================
 \section{Related Work}
@@ -777,7 +780,7 @@ robust stability analysis for linear time-invariant systems.
 For discrete-time systems, Schur stability is equivalent to existence of a
 positive-definite solution $P \succ 0$ to the discrete Lyapunov equation
 $A^\top P A - P + Q = 0$ for any $Q \succ 0$.  Lyapunov methods provide exact
-stability tests and support training-time regularisation~\cite{sedghi2018characterizing},
+stability tests and support training-time regularisation~\cite{miller2019stable},
 but solving the Lyapunov equation scales as $O(n^3)$ and the resulting
 certificates do not directly quantify perturbation margins in the resolvent
 sense.  Our contour certificates are complementary: they forgo the
@@ -828,7 +831,7 @@ bounds are possible but unnecessary for the verification purpose here.
     decomposition ($O(n^3)$).
   \item \emph{Post-hoc only.}  The certificates assess a fixed trained matrix.
     Incorporating them into the training loss (a contour barrier) is deferred
-    to Paper~2 in this series.
+    to companion work.
   \item \emph{Numerical Lipschitz bound.}  The bound $L = \kappa^2 \norm{A_0 - A}$
     is computed numerically; for a fully validated certificate an analytic
     bound on $\kappa$ is required (e.g.\ via interval arithmetic or pseudospectral
@@ -846,9 +849,9 @@ matrix.  Their practical usefulness depends almost entirely on reference
 selection: under scalar or random-diagonal references fewer than $3\%$ of
 stable instances are certified across all matrix families tested.  The
 eig-shrunk diagonal reference achieves $100\%$ certification on diagonal SSMs
-and trained diagonal SSMs; gradient-optimised references (Paper~2) further
-improve margins to $+0.99$ on instances that score $-1.36$ under the scalar
-reference.
+and trained diagonal SSMs; gradient-optimised references (Experiment~5)
+further improve margins to $+0.99$ on instances that score $-1.36$ under
+the scalar reference.
 
 The resolvent certificate is better conditioned and structurally more
 interpretable than the determinant: it avoids polynomial ill-conditioning at
@@ -866,8 +869,7 @@ a fully rigorous certificate would require an analytically validated
 $\kappa = \sup_{|z|=1}\norm{(zI-A_0)^{-1}}$.  We view these results as a
 foundation for complex-analytic perturbation tools in learned dynamical
 systems: training-time contour barriers, structured non-diagonal references,
-and pathwise robustness certificates are pursued in companion papers of this
-series.
+and pathwise robustness certificates are natural directions for future work.
 
 %% ============================================================
 \bibliographystyle{plain}
@@ -916,10 +918,10 @@ M.~Lezcano-Casado and D.~Mart\'inez-Rubio.
 \newblock Cheap orthogonal constraints in neural networks.
 \newblock In {\em ICML}, 2019.
 
-\bibitem{sedghi2018characterizing}
-H.~Sedghi and A.~Anandkumar.
-\newblock Provable tensor methods for learning mixtures of classifiers.
-\newblock {\em arXiv:1412.3046}, 2014.
+\bibitem{miller2019stable}
+J.~Miller and M.~Hardt.
+\newblock Stable recurrent models.
+\newblock In {\em ICLR}, 2019.
 
 \bibitem{smith2023lru}
 J.~T.~H. Smith, A.~Warrington, and S.~W. Linderman.

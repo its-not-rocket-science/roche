@@ -216,13 +216,12 @@ the diagonal.
 Unit tests confirm that the DLR optimiser (i) returns a Schur-stable $A_0$
 and (ii) achieves higher resolvent margins than a scalar reference on
 diagonal-plus-low-rank matrices (\texttt{diagonal\_plus\_low\_rank} family
-with rank-1 perturbation, $n=6$).  On the non-normal and Jordan-near-boundary
-families of Table~\ref{tab:refquality}, no diagonal-class reference
-certifies; the DLR path improves margins (less negative) but does not
-achieve certification.  A systematic experiment comparing DLR to diagonal
-references across all four families from Table~\ref{tab:refquality} is
-deferred to future work; DLR convergence is slower than the diagonal path
-due to the non-convex stability penalty and the larger parameter space.
+with rank-1 perturbation, $n=6$).  A systematic experiment comparing DLR
+to diagonal references across all four families from
+Table~\ref{tab:refquality} is deferred to future work.  DLR convergence is
+slower than the diagonal path due to the non-convex stability penalty and
+the larger parameter space; whether the added expressivity yields
+certification on non-normal or Jordan families is an open question.
 
 %% ============================================================
 \section{Stability Regularisers}
@@ -442,7 +441,9 @@ init $\varrho=0.96$, 10 seeds).
 ``diverged'': runs where training reached NaN/inf;
 ``cert\%'': post-hoc certification rate on stable runs (eig-shrunk ref).
 $\dagger$: constrained\_schur is stable by construction ($\varrho < 0.98$
-enforced via sigmoid parameterisation; exact mean $\varrho^*$ from experimental run).}
+enforced via sigmoid parameterisation: $r_i = \sigma(\ell_i)(1-0.02)$).
+The mean $\varrho^*$ is reported as $<0.98$ since the architectural bound is the
+only guarantee; the exact converged value is task- and seed-dependent.}
 \label{tab:adversarial}
 \begin{tabular}{lrrrr}
 \toprule
@@ -452,7 +453,7 @@ none              & 10  & 1.090 & 1 & 100 \\
 spectral          & 10  & 1.108 & 1 & 100 \\
 lyapunov          & 20  & 1.038 & 1 & 100 \\
 contour barrier   & 10  & 1.103 & 1 & 100 \\
-constrained\_schur$^\dagger$ & 100 & \TBD{run exp} & 0 & 100 \\
+constrained\_schur$^\dagger$ & 100 & $<0.98$ & 0 & 100 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -461,22 +462,21 @@ constrained\_schur$^\dagger$ & 100 & \TBD{run exp} & 0 & 100 \\
 \centering
 \includegraphics[width=0.48\linewidth]{../../results/p2exp3/rho_distribution.pdf}
 \hfill
-\includegraphics[width=0.48\linewidth]{../../results/p2exp3/rho_trajectory.pdf}
+\includegraphics[width=0.48\linewidth]{../../results/p2exp3/stability_and_cert.pdf}
 \caption{Left: distribution of final spectral radii per method (box plots,
 10 seeds).  The red dashed line marks the unit circle.  Hinge methods
 show most runs exceeding $\varrho = 1$; constrained\_schur clusters
 below 0.98.
-Right: per-epoch spectral radius trajectory (seed 0) for three
-representative methods.  Unregularised (blue) and Lyapunov (green) escape
-the unit circle within the first few epochs at lr=0.1; constrained\_schur
-(purple) cannot exceed 0.98 by construction.}
+Right: stability rate (fraction of runs with $\varrho < 1$) and post-hoc
+certification rate (on stable runs) per method.  Constrained\_schur achieves
+100\% on both metrics; hinge regularisers match the unregularised baseline
+on stability rate (10\%) and certify 100\% of the rare stable runs.}
 \label{fig:adversarial}
 \end{figure}
 
 \paragraph{Failure mechanism.}
-Figure~\ref{fig:adversarial} (right) shows the per-epoch $\varrho$
-trajectory for one representative seed.  At lr = 0.1, Adam momentum
-can carry eigenvalue radii by $\Delta\varrho \approx 0.15$ per step.
+At lr = 0.1, Adam momentum can carry eigenvalue radii by
+$\Delta\varrho \approx 0.15$ per step.
 Starting from $\varrho_0 = 0.96$, a single step suffices to cross
 $\varrho = 1$.  The relu-based hinge has \emph{exactly zero gradient}
 below its threshold ($\tau = 0.1$, firing at $\varrho = 0.9$); the
