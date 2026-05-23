@@ -64,8 +64,8 @@ when complex-analytic certification is not worth attempting close the paper.
 \section{Introduction}
 \label{sec:intro}
 
-Post-hoc certification of neural network behaviour is an active area with
-two broad strategies: \emph{bound propagation} (interval arithmetic, abstract
+Post-hoc certification of neural network behaviour is an active area~\cite{liu2021algorithms}
+with two broad strategies: \emph{bound propagation} (interval arithmetic, abstract
 interpretation) and \emph{sampling with verification} (Lipschitz bounds,
 Lyapunov methods).  A less-explored direction asks whether classical
 complex analysis---specifically Rouch\'e's theorem on zero-counting---can
@@ -149,7 +149,8 @@ nodes of the first kind
   \quad k=1,\ldots,n,
 \end{equation}
 and solving the least-squares system.  Chebyshev sampling minimises Runge
-oscillation and gives near-optimal approximation rates for smooth $g_j$.
+oscillation and gives near-optimal approximation rates for smooth
+$g_j$~\cite{trefethen2013approximation}.
 
 \subsection{Approximation error bound}
 
@@ -535,7 +536,8 @@ $\min Q_j > \epsilon_j$ becomes impossible to satisfy.
     numerical; a verified bound via Bernstein ellipse analysis or interval
     arithmetic is needed for rigorous guarantees.
   \item \textbf{Consider Lipschitz-based methods.}  For neural networks with
-    known Lipschitz constants, direct Lipschitz certificates
+    known Lipschitz constants, direct Lipschitz
+    certificates~\cite{weng2018evaluating}
     $\min_t g_j(t) > L_j \cdot \norm{x_b - x_a}$ are tighter and require no
     surrogate fitting.
 \end{enumerate}
@@ -597,5 +599,31 @@ well-suited to settings where the analytic structure is intrinsic (as in
 Papers~1 and~2, where the contour is the unit circle and the matrix
 characteristic function is already analytic), but not to settings where
 analyticity must be imposed through a surrogate on an arbitrary real path.
+
+%% ============================================================
+\bibliographystyle{plain}
+\bibliography{refs}
+
+% Placeholder bibliography entries (replace with refs.bib)
+\begin{thebibliography}{99}
+
+\bibitem{liu2021algorithms}
+C.~Liu, T.~Arnon, C.~Lazarus, C.~Strong, C.~Barrett, and M.~J. Kochenderfer.
+\newblock Algorithms for verifying deep neural networks.
+\newblock {\em Foundations and Trends in Optimization}, 4(3--4):244--404, 2021.
+
+\bibitem{trefethen2013approximation}
+L.~N. Trefethen.
+\newblock {\em Approximation Theory and Approximation Practice}.
+\newblock SIAM, 2013.
+
+\bibitem{weng2018evaluating}
+T.-W. Weng, H.~Zhang, H.~Chen, Z.~Song, C.-J. Hsieh, D.~Boning,
+  I.~S. Dhillon, and L.~Daniel.
+\newblock Evaluating the robustness of neural networks: An extreme value theory
+  approach.
+\newblock In {\em International Conference on Learning Representations}, 2018.
+
+\end{thebibliography}
 
 \end{document}
