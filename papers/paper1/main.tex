@@ -56,15 +56,16 @@ references yield resolvent margins of $+0.99$ on the same instances
 that score $-1.36$ under a scalar reference
 (Experiment~5; method detailed in companion work).
 
-The resolvent certificate is better conditioned numerically and admits a clean
-structural interpretation for diagonal SSMs, but does not universally outperform
-the determinant: on dense normal and non-normal families the determinant certifies
-marginally more instances, while the resolvent is superior on diagonal-structured
-matrices.  The resolvent's avoidance of polynomial ill-conditioning becomes
-decisive only as $n \gtrsim 64$.  We argue that the primary value of these
-certificates lies not in competing with spectral-radius tests, but in providing
-interpretable perturbation margins, structured reference geometry, and diagnostic
-information about which parts of a learned system are closest to instability.
+The resolvent certificate is better conditioned numerically than the determinant
+and admits a clean structural interpretation for diagonal SSMs; it does not,
+however, universally outperform the determinant on certification counts.
+On dense normal and non-normal families the determinant certifies marginally
+more instances, while the resolvent is superior on diagonal-structured matrices.
+The resolvent's avoidance of polynomial ill-conditioning becomes decisive only
+as $n \gtrsim 64$.  The primary value of these certificates lies not in
+competing with spectral-radius tests: they provide interpretable perturbation
+margins and structured reference geometry, and the margin profile identifies
+which parts of a learned system are closest to instability.
 \end{abstract}
 
 %% ============================================================
@@ -127,28 +128,22 @@ A_0)^{-1}\Delta A}_2 < m_{\mathrm{res}}$ on the unit circle preserves stability
     motivating structured references beyond the diagonal family.
 \end{itemize}
 
-Our contributions are:
-\begin{enumerate}
-  \item A \emph{scalar determinant certificate} (Theorem~\ref{thm:det})
-    applying classical Rouch\'e directly to characteristic polynomials.
-  \item A \emph{matrix-valued resolvent certificate} (Theorem~\ref{thm:res})
-    that avoids ill-conditioning of high-degree polynomials and connects
-    naturally to the stability radius and small-gain framework.
-  \item A \emph{deterministic finite-grid verification theorem}
-    (Theorem~\ref{thm:grid}) that upgrades a sampled margin check to a
-    grid-verified certificate under a Lipschitz condition on the margin
-    function.  When the Lipschitz constant is estimated numerically (as in
-    our experiments) we call the result \emph{grid-verified with numerical
-    $L$}; a fully rigorous certificate requires an analytically validated
-    $L$~(Section~\ref{sec:grid}).
-  \item \emph{Reference-selection algorithms} (Section~\ref{sec:refsel})
-    including scalar, diagonal-shrunk, random-search, and gradient-optimised
-    (Experiment~5), with an ablation establishing reference quality as the
-    dominant practical lever.
-  \item \emph{Synthetic experiments} (Section~\ref{sec:experiments})
-    characterising conservatism, false-negative rates, numerical conditioning,
-    wall-clock scalability, and reference-selection impact.
-\end{enumerate}
+Section~\ref{sec:det} develops a scalar determinant certificate
+(Theorem~\ref{thm:det}) by applying classical Rouch\'e directly to
+characteristic polynomials.  A matrix-valued resolvent certificate follows in
+Section~\ref{sec:res} (Theorem~\ref{thm:res}); this formulation avoids the
+ill-conditioning of high-degree polynomials and connects to the stability radius
+and small-gain framework.  Section~\ref{sec:grid} derives a deterministic
+finite-grid verification theorem (Theorem~\ref{thm:grid}): sampled margin
+checks are upgraded to grid-verified certificates under a Lipschitz condition;
+when the constant is estimated numerically, as in our experiments, the result
+is \emph{grid-verified with numerical $L$}, and a fully rigorous certificate
+requires an analytically validated $L$.  Reference-selection
+algorithms---scalar, diagonal-shrunk, random-search, and gradient-optimised---are
+evaluated in Section~\ref{sec:refsel}, establishing reference quality as the
+dominant practical lever.  The synthetic experiments of
+Section~\ref{sec:experiments} characterise conservatism, false-negative rates,
+numerical conditioning, wall-clock scalability, and reference-selection impact.
 
 We emphasise throughout that the certificates are \emph{sufficient but not
 necessary}: a matrix can be Schur stable and yet fail both certificates if no
@@ -783,9 +778,9 @@ $A^\top P A - P + Q = 0$ for any $Q \succ 0$.  Lyapunov methods provide exact
 stability tests and support training-time regularisation~\cite{miller2019stable},
 but solving the Lyapunov equation scales as $O(n^3)$ and the resulting
 certificates do not directly quantify perturbation margins in the resolvent
-sense.  Our contour certificates are complementary: they forgo the
-completeness of Lyapunov analysis in exchange for a lightweight post-hoc
-check that additionally provides the margin geometry.
+sense.  Contour certificates are complementary: they forgo the completeness of
+Lyapunov analysis in exchange for a lightweight post-hoc check that also
+provides the margin geometry.
 
 \paragraph{Stable SSM parameterisations.}
 Modern SSM layers (S4~\cite{gu2022s4}, LRU~\cite{smith2023lru},
@@ -799,10 +794,10 @@ unconstrained models (detecting and quantifying potential instability).
 \paragraph{Rouch\'e in control and signal processing.}
 Rouch\'e's theorem has been applied to pole-placement certification in
 robust control~\cite{bhattacharyya1995robust} and to zero-counting in filter
-design.  Our contribution is its systematic application to learned transition
-matrices, including the matrix-valued resolvent extension, the finite-grid
-verification theorem, and a study of reference selection as the primary
-practical bottleneck.
+design.  Systematic application to learned transition matrices is what this
+paper adds: the matrix-valued resolvent extension and the finite-grid
+verification theorem have no direct precedent there, and reference selection
+is established as the primary practical bottleneck.
 
 \paragraph{Finite-grid quadrature for contour integrals.}
 The deterministic grid certificate (Theorem~\ref{thm:grid}) is related to

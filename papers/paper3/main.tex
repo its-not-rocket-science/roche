@@ -36,28 +36,28 @@ in Neural Network Verification}
 \maketitle
 
 \begin{abstract}
-We investigate whether complex-analytic zero-counting can soundly certify
-the absence of classifier boundary crossings along input paths.  Given a
-continuous path $\gamma:[0,1]\to\mathbb{R}^d$ between two same-class inputs,
-the per-class margin $g_j(t)$ must remain positive throughout.  We construct
-polynomial surrogates $Q_j$ by Chebyshev sampling, bound the approximation
-error $\epsilon_j$, and apply Rouch\'e's theorem on a rectangular complex
-domain to certify zero-freeness.  On synthetic polynomial classifiers with
-controlled margin and degree, the real-polynomial certificate achieves 100\%
-across all settings (exact surrogates, zero approximation error), while the
-Rouch\'e certificate achieves only 0--46\% even with exact surrogates: the
-failure is geometric, not error-driven, as higher-degree polynomial surrogates
-take large complex values off the real axis that defeat the constant-reference
-Rouch\'e condition.  On a small MLP
-trained on the two-moons dataset, certification rates collapse rapidly as
-path length is scaled beyond the original interpolation, because the
-surrogate approximation error grows faster than the available margin.
-Our main finding is a sharp negative result: Rouch\'e certificates offer no
-advantage over the real-polynomial check on real-analytic paths, and both
-become vacuous on realistic neural paths beyond short interpolation scales.
-We provide a counterexample showing why naive complexification fails, a sound
-theorem connecting zero-freeness to pathwise positivity, and practical
-guidelines for when complex-analytic certification is not worth attempting.
+Whether complex-analytic zero-counting can soundly certify the absence of
+classifier boundary crossings along input paths is the central question of
+this paper.  Given a continuous path $\gamma:[0,1]\to\mathbb{R}^d$ between
+two same-class inputs, the per-class margin $g_j(t)$ must remain positive
+throughout.  Polynomial surrogates $Q_j$ are fitted by Chebyshev sampling;
+the approximation error $\epsilon_j$ is bounded and Rouch\'e's theorem is
+applied on a rectangular complex domain to certify zero-freeness.
+On synthetic polynomial classifiers with controlled margin and degree, the
+real-polynomial certificate achieves 100\% across all settings (exact
+surrogates, zero approximation error), while the Rouch\'e certificate achieves
+only 0--46\% even with exact surrogates: the failure is geometric, not
+error-driven, as higher-degree polynomial surrogates take large complex values
+off the real axis that defeat the constant-reference Rouch\'e condition.
+On a small MLP trained on the two-moons dataset, certification rates collapse
+rapidly as path length is scaled beyond the original interpolation, because
+the surrogate approximation error grows faster than the available margin.
+Rouch\'e certificates offer no advantage over the real-polynomial check on
+real-analytic paths; both become vacuous on realistic neural paths beyond
+short interpolation scales.  A counterexample shows why naive complexification
+destroys analyticity.  Theorem~\ref{thm:main} provides a rigorous connection
+between zero-freeness and pathwise positivity, and practical guidelines on
+when complex-analytic certification is not worth attempting close the paper.
 \end{abstract}
 
 %% ============================================================
@@ -79,38 +79,32 @@ certify zero-freeness in $D$.  Since $[0,1]\subset D$, zero-freeness in $D$
 implies zero-freeness on $[0,1]$, and one sign evaluation completes the
 positivity certificate.
 
-Papers~1 and~2 of this series developed Rouch\'e-type certificates for
-the spectral radius of learned transition matrices---a setting where the
-``path'' is the unit circle and the complex structure is intrinsic.  Paper~3
-asks whether the same toolkit transfers to the classifier boundary problem,
-where the analytic structure must be \emph{imposed} through a surrogate.
+Companion work developed Rouch\'e-type certificates for the spectral radius
+of learned transition matrices---a setting where the ``path'' is the unit
+circle and the complex structure is intrinsic.  The present paper asks whether
+the same toolkit transfers to the classifier boundary problem, where the
+analytic structure must be \emph{imposed} through a surrogate.
 
-Our contributions are:
-\begin{enumerate}
-  \item A sound theorem (Theorem~\ref{thm:main}) connecting Rouch\'e
-    zero-freeness to pathwise margin positivity via a surrogate error bound,
-    with an explicit remark (Remark~\ref{rem:epsilon}) distinguishing the
-    numerical $\epsilon_j$ used in experiments from a verified bound.
-  \item An analysis (Section~\ref{sec:real_baseline}) explaining why the
-    real-polynomial positivity check is tighter, cheaper, and free of the
-    second failure mode that affects Rouch\'e.
-  \item A quantitative account of complex excursion
-    (Section~\ref{sec:excursion}): a degree-8 example where positivity on
-    $[0,1]$ is trivial but contour values span $[\varepsilon, 72]$, making
-    the Rouch\'e condition structurally impossible to satisfy.
-  \item A counterexample (Section~\ref{sec:counterexample}) showing that naive
-    complexification of network activations destroys analyticity (poles inside
-    $D$), not merely introduces spurious zeros.
-  \item Experiments on synthetic polynomial classifiers
-    (Section~\ref{sec:exp_synthetic}) showing the real-polynomial certificate
-    achieves 100\% with exact surrogates while Rouché fails even then (0--46\%),
-    establishing that the Rouché failure is geometric rather than error-driven.
-  \item Experiments on a small MLP (Section~\ref{sec:exp_networks}) showing
-    certification collapses with path length, and that Rouch\'e offers no
-    improvement over the simpler real-polynomial check.
-  \item Practical guidelines (Section~\ref{sec:discussion}) for when
-    complex-analytic path certification is not worth attempting.
-\end{enumerate}
+Section~\ref{sec:certs} establishes a sound theorem (Theorem~\ref{thm:main})
+connecting Rouch\'e zero-freeness to pathwise margin positivity;
+Remark~\ref{rem:epsilon} there distinguishes the numerical $\epsilon_j$ used
+in experiments from a formally verified bound.  Section~\ref{sec:real_baseline}
+shows why the real-polynomial positivity check is tighter, cheaper, and free
+of the second failure mode that affects Rouch\'e.  A concrete degree-8 example
+in Section~\ref{sec:excursion} quantifies the complex-excursion mechanism:
+positivity on $[0,1]$ is trivial while contour values span
+$[\varepsilon, 72]$, making the Rouch\'e condition structurally impossible.
+Section~\ref{sec:counterexample} establishes that naive complexification of
+network activations destroys analyticity outright---poles appear inside the
+domain, not merely spurious zeros.  Synthetic experiments
+(Section~\ref{sec:exp_synthetic}) show the real-polynomial certificate
+achieving $100\%$ with exact surrogates while Rouch\'e achieves only
+$0$--$46\%$; the failure is geometric rather than error-driven.  Two-moons
+MLP experiments (Section~\ref{sec:exp_networks}) confirm that Rouch\'e offers
+no improvement over the real-polynomial check and that certification collapses
+with path length for both methods.  Practical guidelines on when
+complex-analytic path certification is not worth attempting close the paper in
+Section~\ref{sec:discussion}.
 
 %% ============================================================
 \section{Background and Setup}

@@ -86,33 +86,23 @@ matrix} $A_0$: a poorly chosen reference inflates the perturbation
 $\norm{A_0 - A}$ relative to the resolvent margin, rendering the
 certificate vacuous.
 
-This paper makes four contributions.
-
-\begin{enumerate}
-\item \textbf{Gradient diagonal reference optimisation.}  We introduce
-  an algorithm that directly maximises the sampled minimum resolvent
-  margin $\hat{m}(A, A_0)$ w.r.t.\ diagonal $A_0$ via PyTorch autograd
-  through a differentiable softmin.  For diagonal $A_0$ and diagonal $A$
-  the margin reduces to $O(Kn)$ elementwise arithmetic; for general $A$
-  we use the same fast diagonal path for $A_0$ with an $O(Kn^2)$ SVD
-  for the operator norm.
-\item \textbf{DLR reference extension (exploratory).}  We extend the
-  parameterisation to diagonal-plus-low-rank (DLR) references for
-  non-normal matrices.  The DLR path finds positive margins on controlled
-  examples but is slower and its advantage over diagonal references on
-  nonnormal/Jordan families is not yet established empirically;
-  full validation is deferred to future work.
-\item \textbf{Regulariser comparison.}  We embed the optimised reference
-  into three training-time regularisers (spectral, Lyapunov, contour
-  barrier) and compare them on AR tasks.  The contour barrier preserves
-  larger spectral radii than spectral/Lyapunov penalties; it does
-  \emph{not} achieve lower task loss or higher resolvent margins.
-\item \textbf{Adversarial regime and constrained-parameterisation
-  baseline.}  We show that under high learning rates and near-boundary
-  initialisations, relu-based hinge regularisers cannot prevent unit-disk
-  escape, while a sigmoid-parameterised model---where $\varrho < 0.98$
-  is enforced by construction---achieves 100\% stability on every seed.
-\end{enumerate}
+Section~\ref{sec:refopt} develops a gradient-based algorithm that maximises
+the sampled minimum resolvent margin $\hat{m}(A, A_0)$ w.r.t.\ diagonal
+$A_0$ via a differentiable softmin and PyTorch autograd; for diagonal $A$
+the margin reduces to $O(Kn)$ elementwise arithmetic, whereas general $A$
+requires an $O(Kn^2)$ SVD path.  An exploratory diagonal-plus-low-rank (DLR)
+extension for non-normal matrices is described in Section~\ref{sec:dlr};
+unit tests confirm correctness on DLR examples, though systematic evaluation
+on non-normal and Jordan families is deferred.  Three training-time stability
+regularisers---spectral penalty, Lyapunov per-mode penalty, and a contour
+barrier---are compared in Section~\ref{sec:regularisers}; the contour barrier
+preserves larger spectral radii without achieving lower task loss or higher
+resolvent margins.  Section~\ref{sec:exp3} shows that relu-based hinge
+regularisers cannot prevent unit-disk escape under adversarial gradient
+pressure: at $\mathrm{lr}=0.1$ with near-boundary initialisation, a single
+Adam step overshoots before any relu gradient fires.  A sigmoid-constrained
+model enforcing $\varrho < 0.98$ by construction achieves $100\%$ stability
+on every seed.
 
 \paragraph{Relation to Paper~1.}
 All certificate definitions, Theorems 1--4, and the Paper~1 codebase
