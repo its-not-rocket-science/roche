@@ -149,7 +149,8 @@ For $A_0 = \mathrm{diag}(d_1, \ldots, d_n)$ with $A$ arbitrary,
 i.e.\ each row $i$ of $A_0 - A$ is scaled by $1/(z - d_i)$.  The
 2-norm of this product equals the largest singular value of a
 row-scaled matrix, which costs $O(Kn^2)$ in general.  When $A$ is
-\emph{also diagonal} (as in diagonal complex SSMs), $A_0 - A$ is
+\emph{also diagonal} (as in diagonal complex SSMs such as
+S4~\cite{gu2022s4} and LRU~\cite{smith2023simplified}), $A_0 - A$ is
 diagonal and the 2-norm reduces to $\max_i \abs{(d_{0,i} -
 a_i)/(z - d_{0,i})}$, costing only $O(Kn)$ with no SVD.
 
@@ -177,7 +178,8 @@ over a grid of $K$ equispaced contour points via a softmin:
   \quad \beta = 20.
 \]
 Gradient ascent on $\hat{m}_\beta$ with respect to $(\ell_i, \phi_i)$
-is performed with Adam (lr = 0.05, 300 steps) using PyTorch autograd.
+is performed with Adam~\cite{kingma2015adam} (lr = 0.05, 300 steps)
+using PyTorch autograd~\cite{paszke2019pytorch}.
 Initialisation uses the eig-shrunk reference (Paper~1), which provides
 a warm start with non-trivial margin for trained SSMs.
 
@@ -233,7 +235,8 @@ clearly stable systems, avoiding a constant background term.
 \[
   \mathcal{R}_{\mathrm{Lyap}}(\mathbf{a}) = \sum_i \mathrm{relu}\!\left(\abs{a_i}^2 - (1 - \tau)\right).
 \]
-For diagonal $A$ with $P = I$ the Lyapunov condition $A^\top P A - P \prec 0$
+For diagonal $A$ with $P = I$ the discrete Lyapunov
+condition~\cite{miller2019stable} $A^\top P A - P \prec 0$
 reduces to $\abs{a_i}^2 < 1$ per mode.  The sum formulation penalises
 \emph{all} near-unstable modes jointly, yielding different gradient dynamics
 from the spectral hinge.
@@ -592,5 +595,35 @@ cannot substitute for each other.
 %% ============================================================
 \bibliographystyle{plain}
 \bibliography{refs}
+
+% Placeholder bibliography entries (replace with refs.bib)
+\begin{thebibliography}{99}
+
+\bibitem{gu2022s4}
+A.~Gu, K.~Goel, and C.~R\'e.
+\newblock Efficiently modeling long sequences with structured state spaces.
+\newblock In {\em International Conference on Learning Representations}, 2022.
+
+\bibitem{kingma2015adam}
+D.~P. Kingma and J.~Ba.
+\newblock Adam: A method for stochastic optimization.
+\newblock In {\em International Conference on Learning Representations}, 2015.
+
+\bibitem{miller2019stable}
+J.~Miller and M.~Hardt.
+\newblock Stable recurrent models.
+\newblock In {\em International Conference on Learning Representations}, 2019.
+
+\bibitem{paszke2019pytorch}
+A.~Paszke, S.~Gross, F.~Massa, et~al.
+\newblock {PyTorch}: An imperative style, high-performance deep learning library.
+\newblock In {\em Advances in Neural Information Processing Systems}, 2019.
+
+\bibitem{smith2023simplified}
+J.~T.~H. Smith, A.~Warrington, and S.~W. Linderman.
+\newblock Simplified state space layers for sequence modeling.
+\newblock In {\em International Conference on Learning Representations}, 2023.
+
+\end{thebibliography}
 
 \end{document}

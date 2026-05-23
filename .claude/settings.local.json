@@ -28,7 +28,9 @@
       "Bash(git -C C:/Users/paul_/PROJECTS/roche commit -m 'docs: update README and pyproject.toml for completed three-paper series *)",
       "Bash(git -C \"C:/Users/paul_/PROJECTS/roche\" add papers/paper1/main.tex)",
       "Bash(git -C C:/Users/paul_/PROJECTS/roche commit -m 'fix: correct Paper 1 abstract/conclusion re resolvent vs determinant performance *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep *)"
     ]
   }
 }
