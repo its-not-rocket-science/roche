@@ -657,8 +657,14 @@ Proposition~\ref{prop:counterex} explains why naive complexification fails.
 The \emph{experimental certificates}, however, are empirical rather than
 formal: $\epsilon_j$ is a numerical grid estimate, not a verified upper bound,
 so Theorem~\ref{thm:main}'s conclusion cannot be invoked to give rigorous
-guarantees on any specific path.  Appendix~\ref{app:rigorous} describes how
-a verified bound would be plugged in.
+guarantees on any specific path.
+Section~\ref{sec:exp_verified} demonstrates this gap on polynomial examples
+using interval-arithmetic bounds: the verified bound is $1.44\times$ larger
+than the grid estimate on average, and $40\%$ of grid-certified instances at
+tight margins are false positives.
+Appendix~\ref{app:rigorous} sketches how analogous verified bounds could be
+extended to neural paths via Bernstein ellipse analysis or interval arithmetic
+on the network's forward pass.
 
 Empirically, the real-polynomial certificate strictly dominates Rouché
 in every setting tested: on synthetic classifiers with exact surrogates
