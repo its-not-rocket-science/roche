@@ -85,6 +85,14 @@ def diagonal_plus_low_rank(
     return a.astype(np.complex128)
 
 
+def diagonal_stable(n: int, rng: np.random.Generator, max_radius: float = 0.9) -> ComplexMatrix:
+    """Generate a stable diagonal matrix with random eigenvalues inside the unit disk."""
+    radii = rng.uniform(0.1, max_radius, size=n)
+    angles = rng.uniform(0.0, 2.0 * np.pi, size=n)
+    eigs = radii * np.exp(1j * angles)
+    return np.diag(eigs).astype(np.complex128)
+
+
 def scale_to_radius(a: ComplexMatrix, target_radius: float) -> ComplexMatrix:
     """Scale a matrix to a target spectral radius."""
     rho = spectral_radius(a)

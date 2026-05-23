@@ -216,12 +216,24 @@ def schur_stability_summary(a_matrix: ComplexMatrix) -> dict:
 # ---------------------------------------------------------------------------
 
 class _DiagonalSSM(nn.Module):
-    """Diagonal complex SSM as a PyTorch module."""
+    """Diagonal complex SSM as a PyTorch module.
 
-    def __init__(self, n_state: int, seed: int = 0) -> None:
+    constrained=True (default): radii clamped to (0, ~4.5) via exp(clamp(log_r,-10,1.5)).
+    constrained=False: radii = exp(log_r), unconstrained; eigenvalues can escape unit disk.
+    init_log_r: override default initialisation (e.g. near-boundary adversarial init).
+    """
+
+    def __init__(
+        self,
+        n_state: int,
+        seed: int = 0,
+        constrained: bool = True,
+        init_log_r: float | None = None,
+    ) -> None:
         super().__init__()
         rng = np.random.default_rng(seed)
-        log_r = torch.tensor(rng.normal(-0.7, 0.2, n_state), dtype=torch.float64)
+        default_log_r = init_log_r if init_log_r is not None else -0.7
+        log_r = torch.tensor(rng.normal(default_log_r, 0.05, n_state), dtype=torch.float64)
         angles = torch.tensor(rng.uniform(0.0, 2 * np.pi, n_state), dtype=torch.float64)
         b_re = torch.tensor(rng.normal(0.0, 0.1, n_state), dtype=torch.float64)
         b_im = torch.tensor(rng.normal(0.0, 0.1, n_state), dtype=torch.float64)
@@ -234,12 +246,15 @@ class _DiagonalSSM(nn.Module):
         self.c_re = nn.Parameter(c_re)
         self.c_im = nn.Parameter(c_im)
         self.d = nn.Parameter(torch.zeros(1, dtype=torch.float64))
+        self.constrained = constrained
 
     @property
     def a_diag(self) -> torch.Tensor:
-        """Complex diagonal eigenvalues; radii clamped to (0, e^1.5) via exp."""
-        log_r_clamped = torch.clamp(self.log_r, -10.0, 1.5)
-        radii = torch.exp(log_r_clamped)
+        """Complex diagonal eigenvalues."""
+        if self.constrained:
+            radii = torch.exp(torch.clamp(self.log_r, -10.0, 1.5))
+        else:
+            radii = torch.exp(self.log_r)   # unconstrained: can exceed 1
         return torch.polar(radii, self.angles).to(torch.complex128)
 
     def forward(self, u_seq: torch.Tensor) -> torch.Tensor:
@@ -270,12 +285,16 @@ def train_diagonal_ssm_adam(
     reg_weight: float = 0.1,
     regulariser: Callable[[torch.Tensor], torch.Tensor] | None = None,
     seed: int = 0,
+    constrained: bool = True,
+    init_log_r: float | None = None,
 ) -> tuple[ComplexMatrix, list[float], list[float]]:
     """Train a diagonal complex SSM via Adam with an optional stability regulariser.
 
+    constrained=False: eigenvalue radii unconstrained (can exceed 1 without regulariser).
+    init_log_r: initial log-radius value (e.g. log(0.96) ≈ -0.041 for near-boundary init).
     Returns (A_matrix, task_loss_history, reg_loss_history).
     """
-    model = _DiagonalSSM(n_state, seed=seed)
+    model = _DiagonalSSM(n_state, seed=seed, constrained=constrained, init_log_r=init_log_r)
     u_t = torch.tensor(u_seq, dtype=torch.float64)
     target_t = torch.tensor(target_seq, dtype=torch.float64)
     optimiser = torch.optim.Adam(model.parameters(), lr=lr)

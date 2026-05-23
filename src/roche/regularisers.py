@@ -29,22 +29,28 @@ def spectral_penalty(
     a_diag: torch.Tensor,
     margin: float = 0.01,
 ) -> torch.Tensor:
-    """Hinge loss on spectral radius: softplus(max|a_i| - (1 - margin))."""
+    """Hinge loss on spectral radius: relu(max|a_i| - (1 - margin)).
+
+    Exactly zero for clearly stable systems; gradient fires only when rho
+    exceeds the threshold.  relu is preferred over softplus here because
+    softplus adds a constant background even far below the threshold.
+    """
     rho = torch.max(torch.abs(a_diag))
-    return F.softplus(rho - (1.0 - margin))
+    return F.relu(rho - (1.0 - margin))
 
 
 def lyapunov_penalty(
     a_diag: torch.Tensor,
     margin: float = 0.01,
 ) -> torch.Tensor:
-    """Per-mode Lyapunov penalty: sum_i softplus(|a_i|^2 - (1 - margin)).
+    """Per-mode Lyapunov hinge: sum_i relu(|a_i|^2 - (1 - margin)).
 
     For diagonal A with P=I the Lyapunov condition A^H P A - P < 0 reduces to
     |a_i|^2 < 1 for each i.  Using a sum rather than max gives different
-    gradient dynamics: all unstable modes are pulled toward stability jointly.
+    gradient dynamics: all near-unstable modes are pulled toward stability jointly.
+    relu ensures exactly zero penalty for clearly stable modes.
     """
-    return torch.sum(F.softplus(torch.abs(a_diag) ** 2 - (1.0 - margin)))
+    return torch.sum(F.relu(torch.abs(a_diag) ** 2 - (1.0 - margin)))
 
 
 def make_contour_barrier(
@@ -75,6 +81,6 @@ def make_contour_barrier(
         op_norm = torch.max(torch.abs(vals), dim=1).values  # (K,)
         margins = 1.0 - op_norm                    # (K,) real
         soft_min = -(1.0 / softmin_beta) * torch.logsumexp(-softmin_beta * margins, dim=0)
-        return F.softplus(-soft_min + margin)
+        return F.relu(-soft_min + margin)
 
     return barrier

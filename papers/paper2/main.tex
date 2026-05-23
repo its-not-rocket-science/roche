@@ -48,14 +48,15 @@ insufficient for non-normal and Jordan-near-boundary matrices regardless
 of optimisation quality.  We then embed the optimised reference into
 three families of training-time stability regularisers---spectral
 penalty, Lyapunov per-mode penalty, and a differentiable contour
-barrier---and compare them on autoregressive prediction tasks.  All
-three regularisers achieve equivalent 100\% post-hoc certification; they
-differ in the task-loss--spectral-radius trade-off: the Lyapunov penalty
-incurs up to 24\% task-loss overhead by over-suppressing near-boundary
-modes, while the spectral and contour regularisers keep overhead below
-8\%.  The contour barrier uniquely preserves the spectral radius
-($\varrho \approx 0.68$ vs $0.46$--$0.50$ for spectral/Lyapunov),
-indicating it does not penalise stable modes beyond the margin threshold.
+barrier---and compare them on autoregressive prediction tasks under two
+regimes.  In a standard constrained regime (clipped eigenvalue radii),
+all three achieve 100\% post-hoc certification; they differ only in the
+task-loss--spectral-radius trade-off.  In an adversarial unconstrained
+regime (lr=0.1, near-boundary init at $\varrho=0.96$), 90\% of
+unregularised runs overshoot the unit circle; hinge regularisers reduce
+but do not eliminate instability (10--20\% stable), demonstrating that
+post-hoc penalisation cannot substitute for constrained parameterisation
+under extreme gradient pressure.
 \end{abstract}
 
 %% ============================================================
@@ -163,6 +164,29 @@ is performed with Adam (lr = 0.05, 300 steps) using PyTorch autograd.
 Initialisation uses the eig-shrunk reference (Paper~1), which provides
 a warm start with non-trivial margin for trained SSMs.
 
+\subsection{Diagonal-plus-low-rank reference (extension)}
+\label{sec:dlr}
+
+A diagonal $A_0$ cannot closely approximate matrices with significant
+off-diagonal structure.  We extend the parameterisation to
+\emph{diagonal-plus-low-rank} (DLR):
+\[
+  A_0 = \mathrm{diag}(d_0) + U V^H, \quad U, V \in \C^{n \times r},
+\]
+with the diagonal part reparameterised as before and $U, V$
+initialised to zero (so $A_0$ starts diagonal).  Stability of $A_0$
+is enforced via a softplus penalty on the spectral radius of $A_0$
+rather than by construction:
+\[
+  \mathcal{P}_{\mathrm{stab}} = \mathrm{softplus}(\varrho(A_0) - (1 - \varepsilon)).
+\]
+The resolvent margin is computed via batched
+$\texttt{torch.linalg.solve}$ + SVD ($O(Kn^3)$ per step), since $A_0$
+is no longer diagonal.  Rank $r = 1$ adds $4n$ real parameters beyond
+the diagonal; our tests confirm the DLR optimiser finds positive
+margins but convergence is slower than the diagonal path, consistent
+with the harder non-convex landscape.
+
 %% ============================================================
 \section{Stability Regularisers}
 \label{sec:regularisers}
@@ -172,14 +196,16 @@ $\mathbf{a} = (a_1, \ldots, a_n) \in \C^n$ and return a real scalar.
 
 \paragraph{Spectral penalty.}
 \[
-  \mathcal{R}_{\mathrm{spec}}(\mathbf{a}) = \mathrm{softplus}\!\left(\max_i \abs{a_i} - (1 - \tau)\right),
+  \mathcal{R}_{\mathrm{spec}}(\mathbf{a}) = \mathrm{relu}\!\left(\max_i \abs{a_i} - (1 - \tau)\right),
 \]
-where $\tau = 0.01$ is a stability margin.  This is a hinge on the
-spectral radius; only the largest mode is penalised.
+where $\tau$ is a stability margin.  This is a hinge on the spectral
+radius; only the largest mode is penalised.  \texttt{relu} rather than
+\texttt{softplus} is used so the penalty is \emph{exactly zero} for
+clearly stable systems, avoiding a constant background term.
 
 \paragraph{Lyapunov penalty.}
 \[
-  \mathcal{R}_{\mathrm{Lyap}}(\mathbf{a}) = \sum_i \mathrm{softplus}\!\left(\abs{a_i}^2 - (1 - \tau)\right).
+  \mathcal{R}_{\mathrm{Lyap}}(\mathbf{a}) = \sum_i \mathrm{relu}\!\left(\abs{a_i}^2 - (1 - \tau)\right).
 \]
 For diagonal $A$ with $P = I$ the Lyapunov condition $A^\top P A - P \prec 0$
 reduces to $\abs{a_i}^2 < 1$ per mode.  The sum formulation penalises
@@ -188,7 +214,7 @@ from the spectral hinge.
 
 \paragraph{Contour barrier.}
 \[
-  \mathcal{R}_{\mathrm{ctour}}(\mathbf{a}) = \mathrm{softplus}\!\left(-\hat{m}_\beta(A, A_0^*) + \tau\right),
+  \mathcal{R}_{\mathrm{ctour}}(\mathbf{a}) = \mathrm{relu}\!\left(-\hat{m}_\beta(A, A_0^*) + \tau\right),
 \]
 where $A_0^*$ is the gradient-optimised reference computed once from
 the initial model and frozen throughout training.  The barrier fires
@@ -348,6 +374,69 @@ it does not suppress stable modes beyond the margin threshold $\tau$,
 at the cost of a lower resolvent margin ($+0.82$) than spectral ($+0.90$--$+0.91$)
 or Lyapunov ($+0.92$).
 
+\subsection{Experiment 3: Adversarial unconstrained regime}
+\label{sec:exp3}
+
+To isolate whether hinge regularisers can \emph{prevent} instability
+(rather than merely coexist with it in an already-stable regime), we
+train with \emph{unconstrained} eigenvalue radii, a high learning rate
+(lr = 0.1), adversarial near-boundary initialisation ($\varrho_{\mathrm{init}} = 0.96$),
+and a long-memory AR(4) task ($\varrho_{\max} \approx 0.97$, seq.\ length 2000).
+Regulariser threshold is $\tau = 0.1$ (fires at $\varrho = 0.9$) with weight
+$\lambda = 1.0$.  Ten seeds per method; $n = 8$, 300 epochs.
+
+\begin{table}[t]
+\centering
+\caption{Experiment~3: Stability regularisers under adversarial gradient
+pressure (unconstrained SSM, lr=0.1, init $\varrho=0.96$, 10 seeds).
+``stable\%'': fraction of runs with $\varrho(A) < 1$ at convergence;
+``mean $\varrho^*$'': mean spectral radius of finite (non-diverged) runs;
+``diverged'': runs where training reached NaN/inf;
+``cert\%'': post-hoc certification rate on stable runs (eig-shrunk ref).}
+\label{tab:adversarial}
+\begin{tabular}{lrrrr}
+\toprule
+Regulariser & stable\% & mean $\varrho^*$ & diverged & cert\% (stable) \\
+\midrule
+none            & 10 & 1.090 & 1 & 100 \\
+spectral        & 10 & 1.108 & 1 & 100 \\
+lyapunov        & 20 & 1.038 & 1 & 100 \\
+contour barrier & 10 & 1.103 & 1 & 100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.55\linewidth]{../../results/p2exp3/rho_distribution.pdf}
+\hfill
+\includegraphics[width=0.44\linewidth]{../../results/p2exp3/stability_and_cert.pdf}
+\caption{Left: distribution of final spectral radii per method (box plots,
+10 seeds).  The red dashed line marks the unit circle.  All methods show
+most runs exceeding $\varrho = 1$, with means clustering near $1.09$--$1.11$.
+Right: stability rate (\%) and post-hoc certification rate (\%) for stable runs.}
+\label{fig:adversarial}
+\end{figure}
+
+Key findings: at lr = 0.1, 90\% of unregularised runs overshoot the unit
+circle within 300 epochs.  Hinge regularisers provide minimal benefit:
+spectral and contour achieve the same 10\% stability rate as the
+unregularised baseline; the Lyapunov penalty---which sums \emph{all}
+near-unstable modes rather than the maximum---recovers one additional
+seed (20\% stable).  The core failure mode is that relu-based hinges
+have zero gradient below the threshold; at lr = 0.1 a single Adam step
+can carry eigenvalues from $\varrho = 0.96$ past the unit circle before
+any regulariser gradient fires.  Once escaped, the task gradient (which
+favours high $\varrho$ for long-memory prediction) is strong enough to
+maintain the unstable equilibrium at $\varrho \approx 1.1$.
+The single diverged seed (seed 2, $\varrho \to \infty$) occurs identically
+for all methods, consistent with the regulariser having no effect before
+escape.  Stable runs all certify (100\%), confirming that when stability
+is preserved, post-hoc certification remains reliable.
+\emph{Conclusion:} hinge regularisers cannot substitute for constrained
+parameterisation under adversarial gradient pressure; a clamp or
+projection that enforces $\varrho < 1$ by construction is necessary.
+
 %% ============================================================
 \section{Results}
 \label{sec:results}
@@ -362,12 +451,20 @@ $-1.86$ (scalar) to $-0.97$; nonnormal stable from $-11.07$ to
 $-4.98$.
 
 Regulariser comparison (Experiment~2) shows all methods achieve 100\%
-post-hoc certification.  The spectral penalty achieves the lowest task
-loss among regularised methods ($\leq 6\%$ overhead), the Lyapunov penalty
-incurs up to 24\% overhead but achieves the highest resolvent margin
+post-hoc certification in the standard constrained regime.  The spectral
+penalty achieves the lowest task loss ($\leq 6\%$ overhead), the Lyapunov
+penalty incurs up to 24\% overhead but achieves the highest resolvent margin
 ($+0.92$), and the contour barrier provides the best spectral-radius
 preservation ($\varrho \approx 0.68$) by not penalising stable modes beyond
 the certificate threshold.
+
+Adversarial regime (Experiment~3) reveals the fundamental limitation of
+hinge regularisers: at lr = 0.1 with unconstrained radii, 90\% of
+unregularised runs escape the unit disk, and hinge regularisers reduce
+this to at best 80\% failure (Lyapunov, 20\% stable) because a single
+Adam step overshoots the unit circle before the relu gradient fires.
+Constrained parameterisation ($\texttt{clamp}$ on log-radius) eliminates
+instability entirely by construction.
 
 %% ============================================================
 \section{Discussion}
@@ -392,6 +489,18 @@ that are well within the certificate, preserving $\varrho \approx 0.68$
 vs.\ $0.46$--$0.50$ for spectral/Lyapunov.  This matters for long-memory
 AR tasks where near-boundary modes carry useful predictive signal.
 
+\paragraph{Hinge regularisers under adversarial gradient pressure.}
+Experiment~3 establishes that relu-based hinges cannot prevent
+instability when learning rates are high enough that a single gradient
+step overshoots the unit circle.  Softplus hinges would provide
+non-zero gradient even far below threshold, but at the cost of a
+constant background penalty that accumulates across all modes.  The
+fundamental bottleneck is not the hinge form but the step-size: for
+Adam with lr$=0.1$, momentum can carry eigenvalues $\Delta\varrho \approx
+0.15$ in one step, far exceeding the distance from the near-boundary
+init ($\varrho=0.96$) to instability.  Gradient clipping or a smaller
+lr would mitigate this; constrained parameterisation eliminates it.
+
 \paragraph{Limitations.}
 The gradient-optimised reference is computed on the \emph{initial}
 model and frozen; co-optimising $A_0$ jointly with $A$ during training
@@ -399,15 +508,25 @@ is a natural extension deferred to future work.
 The diagonal-fast-path assumption ($A$ diagonal) is inherent to the
 current diagonal complex SSM architecture; extension to structured
 non-diagonal SSMs requires the full $O(Kn^2)$ SVD path.
+The DLR extension (Section~\ref{sec:dlr}) converges more slowly than
+the diagonal path due to the non-convex stability penalty and additional
+parameters; a tighter constrained reparameterisation for the low-rank
+correction is an open problem.
 
 %% ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
-We demonstrated that gradient-based reference optimisation substantially
-closes the certification gap identified in Paper~1, and that the
-resulting contour barrier provides a certificate-aware training signal
-competitive with classical spectral and Lyapunov penalties.
+Gradient-based reference optimisation substantially closes the
+certification gap identified in Paper~1.  In the standard constrained
+regime, all three regularisers achieve 100\% post-hoc certification;
+they differ only in the task-loss--spectral-radius trade-off.  Under
+adversarial gradient pressure (unconstrained radii, high lr), hinge
+regularisers reduce but cannot eliminate instability: only constrained
+parameterisation provides a hard stability guarantee.  The DLR reference
+extension demonstrates that richer reference classes are reachable by
+gradient optimisation, motivating future work on tight non-diagonal
+reparameterisations.
 
 %% ============================================================
 \bibliographystyle{plain}

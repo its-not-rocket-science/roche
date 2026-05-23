@@ -136,6 +136,87 @@ def optimise_diagonal_reference(
     return np.diag(d0_np), history
 
 
+def optimise_dlr_reference(
+    a: ComplexMatrix,
+    rank: int = 1,
+    n_steps: int = 400,
+    lr: float = 0.02,
+    num_contour_points: int = 256,
+    softmin_beta: float = 20.0,
+    seed: int = 0,
+) -> tuple[ComplexMatrix, list[float]]:
+    """Gradient ascent on resolvent margin w.r.t. DLR reference A0 = diag(d0) + U @ V.H.
+
+    A0 is guaranteed stable via a softplus stability penalty on its eigenvalues.
+    Diagonal part parameterised as diag(sigmoid(log_r_raw)*(1-eps)).
+    U, V free complex (n x rank); their contribution is scaled by a small factor
+    to keep A0 close to diagonal and aid stability.
+
+    Returns (A0_matrix, margin_history).
+    """
+    torch.manual_seed(seed)
+    n = a.shape[0]
+    a_t = torch.tensor(a, dtype=_DTYPE)
+    points = _unit_circle(num_contour_points)
+
+    # Diagonal part: stable reparameterisation
+    from roche.reference import diagonal_reference_from_eigs
+    a0_diag_np = diagonal_reference_from_eigs(a)
+    d0_init = np.diag(a0_diag_np)
+    r0 = np.abs(d0_init).clip(1e-4, 0.97)
+    phi0 = np.angle(d0_init)
+    log_r_raw = torch.tensor(np.log(r0 / (1.0 - r0)), dtype=_RDTYPE, requires_grad=True)
+    phi = torch.tensor(phi0, dtype=_RDTYPE, requires_grad=True)
+
+    # Low-rank part: U, V in R^{n x rank} real (separate re/im)
+    scale = 0.1
+    u_re = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
+    u_im = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
+    v_re = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
+    v_im = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
+
+    params = [log_r_raw, phi, u_re, u_im, v_re, v_im]
+    optimiser = torch.optim.Adam(params, lr=lr)
+    history: list[float] = []
+
+    for _ in range(n_steps):
+        optimiser.zero_grad()
+        eps = 0.02
+        r = torch.sigmoid(log_r_raw) * (1.0 - eps)
+        d0 = torch.polar(r, phi).to(_DTYPE)                           # (n,)
+        U = (u_re + 1j * u_im).to(_DTYPE) * scale                    # (n, rank)
+        V = (v_re + 1j * v_im).to(_DTYPE) * scale                    # (n, rank)
+        A0 = torch.diag(d0) + U @ V.conj().T                         # (n, n)
+
+        # Resolvent margins via batched SVD
+        lhs = points[:, None, None] * torch.eye(n, dtype=_DTYPE)[None] - A0[None]  # (K,n,n)
+        perturbation = A0 - a_t                                                      # (n,n)
+        resolved = torch.linalg.solve(lhs, perturbation[None].expand(len(points), -1, -1))
+        sv = torch.linalg.svd(resolved, full_matrices=False).S
+        op_norm = sv[:, 0]
+        margins = 1.0 - op_norm
+
+        # Stability penalty: softplus on spectral radius of A0 exceeding (1 - eps)
+        eigs = torch.linalg.eigvals(A0)
+        rho_a0 = torch.max(torch.abs(eigs))
+        stability_penalty = torch.nn.functional.softplus(rho_a0 - (1.0 - eps))
+
+        loss = -_softmin(margins, softmin_beta) + 5.0 * stability_penalty
+        loss.backward()
+        optimiser.step()
+        history.append(float(margins.min().item()))
+
+    with torch.no_grad():
+        eps = 0.02
+        r = torch.sigmoid(log_r_raw) * (1.0 - eps)
+        d0 = torch.polar(r, phi).to(_DTYPE)
+        U = (u_re + 1j * u_im).to(_DTYPE) * scale
+        V = (v_re + 1j * v_im).to(_DTYPE) * scale
+        A0 = torch.diag(d0) + U @ V.conj().T
+
+    return A0.numpy().astype(np.complex128), history
+
+
 def compare_reference_methods(
     a: ComplexMatrix,
     num_contour_points: int = 512,
