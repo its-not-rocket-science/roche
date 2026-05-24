@@ -13,21 +13,23 @@ Grid:
 
 Output: Table P3-1, convergence figure, results/p3exp1/
 """
-
 from __future__ import annotations
 
-import os
 import sys
+import argparse
+import csv
 from itertools import product
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from roche.path_cert import certify_path
+
 
 RESULTS_DIR = Path("results/p3exp1")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,8 +86,6 @@ def run_cell_n(deg: int, min_margin: float, rng: np.random.Generator, n: int) ->
 
 
 def main(args=None) -> None:
-    import argparse
-    import csv
     if args is None:
         parser = argparse.ArgumentParser()
         parser.add_argument("--quick", action="store_true",
