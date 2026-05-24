@@ -17,14 +17,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from roche.path_cert import certify_path, certify_dense
-from roche.surrogate import fit_surrogate
+from roche.path_cert import certify_path
 
 RESULTS_DIR = Path("results/p3exp2")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -74,7 +74,6 @@ def train_mlp(X_train, y_train, n_hidden: int, n_epochs: int, lr: float, rng):
 
 def model_margins(model, x_batch):
     """Return logits[0] - logits[1] for each row in x_batch (class 0 margin)."""
-    import torch
     with torch.no_grad():
         logits = model(torch.tensor(x_batch, dtype=torch.float32)).numpy()
     return logits[:, 0] - logits[:, 1]   # positive => predicted class 0
