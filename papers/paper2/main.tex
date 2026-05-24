@@ -527,16 +527,16 @@ on stability rate (10\%) and certify 100\% of the rare stable runs.}
 \paragraph{Failure mechanism.}
 At lr = 0.1, Adam momentum can carry eigenvalue radii by
 $\Delta\varrho \approx 0.15$ per step.
-Starting from $\varrho_0 = 0.96$, a single step suffices to cross
-$\varrho = 1$.  The relu-based hinge has \emph{exactly zero gradient}
-below its threshold ($\tau = 0.1$, firing at $\varrho = 0.9$); the
-gradient activates only at $\varrho \geq 0.9$, but the unit-circle
-crossing occurs in one step from $\varrho = 0.96$ with no intermediate
-evaluation.  The fundamental bottleneck is not the hinge form but the
-step-size: gradient clipping, adaptive per-mode lr, or constrained
-parameterisation all resolve it.  Experiment~3b (below) directly tests
-two alternatives: a softplus hinge (non-zero gradient everywhere) and
-a radius-projection post-step clamp.
+Starting from $\varrho_0 = 0.96$, a single step can cross $\varrho = 1$.
+The hinge threshold is $\varrho = 0.9$, so the regulariser is
+\emph{already active} at initialisation ($0.96 > 0.9$); the failure is
+not delayed activation but \emph{gradient dominance}: the regulariser
+gradient is too small relative to the task gradient and Adam momentum.
+Experiment~3b directly tests two alternatives: a softplus hinge
+(non-zero gradient everywhere) and a radius-projection post-step clamp.
+The softplus ablation confirms that smoothing the hinge does not improve
+stability, while projection and constrained parameterisation do---the
+bottleneck is gradient magnitude, not relu non-differentiability.
 
 Key findings: at lr = 0.1, 9/10 unregularised runs overshoot the unit
 circle within 300 epochs.  Hinge regularisers provide minimal benefit:
