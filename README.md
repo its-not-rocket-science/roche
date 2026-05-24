@@ -116,6 +116,29 @@ cd papers/paper2 && pdflatex main.tex
 cd papers/paper3 && pdflatex main.tex
 ```
 
+## Certificate terminology
+
+Three certificate levels appear across the papers:
+
+| Term | Meaning | Where |
+|------|---------|-------|
+| `sampled_only` | Minimum margin is positive on the evaluation grid — no false-positive guarantee | Paper 1 Exp 1, Paper 3 Exp 1–3 |
+| `grid_verified_numeric_L` | Theorem~1 (Paper 1) with a **numerically estimated** Lipschitz bound; sound given that estimate, not formally rigorous | Paper 1 Exp 2 (Table 2, labelled "grid-ver.") |
+| `fully_validated` | Analytically validated Lipschitz bound (diagonal Neumann series); formally rigorous | Paper 1 Exp 2, diagonal cases |
+
+The `verified_error_bound` function in `src/roche/surrogate.py` (Paper 3 Exp 4) uses
+interval subdivision with 1000 subintervals but standard IEEE 754 floating-point arithmetic
+(no directed rounding). It is tighter than a 500-point grid estimate but is not a formally
+rigorous interval-arithmetic bound.
+
+## Known limitations of DLR reference optimisation
+
+The diagonal-plus-low-rank (DLR) extension in `src/roche/reference_opt.py` requires U, V
+to be initialised with nonzero noise (scale `1e-2`) to break the zero-gradient symmetry;
+zero initialisation leaves the low-rank branch at a saddle where all gradients are zero.
+DLR convergence is slower than diagonal due to the non-convex spectral-radius penalty.
+Systematic evaluation on non-normal and Jordan families is future work.
+
 ## Core idea
 
 For a learned SSM transition matrix $A$, the resolvent certificate uses a known-stable diagonal reference $A_0$ to certify Schur stability via

@@ -59,8 +59,9 @@ short interpolation scales.  A counterexample shows why naive complexification
 destroys analyticity.  \emph{A sound complex-analytic certificate exists, but
 it is dominated by real-polynomial positivity, and surrogate-error estimates
 must be verified: grid-based $\epsilon_j$ can create false certificates}---
-interval-arithmetic experiments confirm that the verified bound is $1.44\times$
-the grid estimate on average, with $40\%$ false-positive rate at tight margins.
+interval-subdivision experiments (modulo IEEE floating-point rounding) confirm
+that the verified bound is $1.44\times$ the grid estimate on average, with $40\%$
+false-positive rate at tight margins.
 \end{abstract}
 
 %% ============================================================
@@ -467,8 +468,9 @@ Scale & Real poly (\%) & Rouch\'e (\%) & Mean $\epsilon_j$ \\
 \label{sec:exp_verified}
 
 We measure the gap between the 500-point grid estimate $\hat\epsilon_j^{\rm grid}$
-and the interval-arithmetic verified bound $\epsilon_j^{\rm rig}$
-(Appendix~\ref{app:rigorous}, interval subdivision with $N_{\rm sub}=1000$).
+and the interval-subdivision bound $\epsilon_j^{\rm rig}$
+(Appendix~\ref{app:rigorous}, $N_{\rm sub}=1000$ subdivisions,
+modulo IEEE floating-point rounding).
 True margins $g_j$ are random degree-8 polynomials; surrogates are degree~4
 (intentional underfitting to produce non-trivial error).  300 instances per row;
 min margin $\mu$ varied to span tight to comfortable regimes.
@@ -478,7 +480,7 @@ min margin $\mu$ varied to span tight to comfortable regimes.
 \caption{Exp P3-4: Verified vs.\ grid error bounds.
   True degree~8 polynomial, degree-4 surrogate, 300 instances per row.
   $\hat\epsilon^{\rm grid}$: 500-point grid estimate.
-  $\epsilon^{\rm rig}$: interval-arithmetic bound (verified upper bound).
+  $\epsilon^{\rm rig}$: interval-subdivision bound (modulo IEEE floating-point rounding).
   ``cert'': real-polynomial certificate rate.
   ``f.p.'': false-positive rate (grid certifies, verified bound invalidates).
   ``f.p.\,$\mid$\,grid'': conditional false-positive rate among grid-certified
@@ -698,9 +700,9 @@ formal: $\epsilon_j$ is a numerical grid estimate, not a verified upper bound,
 so Theorem~\ref{thm:main}'s conclusion cannot be invoked to give rigorous
 guarantees on any specific path.
 Section~\ref{sec:exp_verified} demonstrates this gap on polynomial examples
-using interval-arithmetic bounds: the verified bound is $1.44\times$ larger
-than the grid estimate on average, and $40\%$ of grid-certified instances at
-tight margins are false positives.
+using interval-subdivision bounds (modulo IEEE floating-point rounding): the
+verified bound is $1.44\times$ larger than the grid estimate on average, and
+$40\%$ of grid-certified instances at tight margins are false positives.
 Appendix~\ref{app:rigorous} sketches how analogous verified bounds could be
 extended to neural paths via Bernstein ellipse analysis or interval arithmetic
 on the network's forward pass.

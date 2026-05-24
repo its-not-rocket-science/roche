@@ -67,10 +67,11 @@ remain active below the spectral-radius threshold.
 In an adversarial unconstrained regime (lr=0.1, near-boundary init
 $\varrho=0.96$), 90\% of unregularised runs overshoot the unit circle.
 Hinge regularisers reduce but cannot eliminate instability (10--20\%
-stable): a single Adam step at lr=0.1 can carry eigenvalues past the
-unit circle before any relu gradient fires.  An ablation (Experiment~3b)
-shows that a softplus hinge offers no meaningful improvement, while a
-post-step radius-projection clamp is substantially more effective by
+stable): at lr=0.1 the hinge is already active ($\varrho_{\rm init}=0.96>0.9$)
+but its gradient is overwhelmed by the task gradient and Adam momentum,
+so a single step can carry eigenvalues past the unit circle.  An ablation
+(Experiment~3b) shows that a softplus hinge offers no meaningful improvement,
+while a post-step radius-projection clamp is substantially more effective by
 enforcing the radius bound every step.  A sigmoid-parameterised
 constrained trainer (spectral radius $< 0.98$ by construction) achieves
 100\% stability on every seed, confirming that soft penalties are
@@ -97,15 +98,18 @@ $A_0$ via a differentiable softmin and PyTorch autograd; for diagonal $A$
 the margin reduces to $O(Kn)$ elementwise arithmetic, whereas general $A$
 requires an $O(Kn^2)$ SVD path.  An exploratory diagonal-plus-low-rank (DLR)
 extension for non-normal matrices is described in Appendix~\ref{app:dlr};
-unit tests confirm correctness, though systematic evaluation on non-normal
-and Jordan families is deferred.  Three training-time stability
+unit tests confirm stability of the returned $A_0$, nonzero low-rank
+movement on DLR inputs, and margin improvement over scalar/diagonal
+baselines in small controlled cases, though systematic evaluation on
+non-normal and Jordan families is deferred.  Three training-time stability
 regularisers---spectral penalty, Lyapunov per-mode penalty, and a contour
 barrier---are compared in Section~\ref{sec:regularisers}; the contour barrier
 preserves larger spectral radii without achieving lower task loss or higher
 resolvent margins.  Section~\ref{sec:exp3} shows that relu-based hinge
 regularisers cannot prevent unit-disk escape under adversarial gradient
-pressure: at $\mathrm{lr}=0.1$ with near-boundary initialisation, a single
-Adam step overshoots before any relu gradient fires.  Section~\ref{sec:exp3b}
+pressure: at $\mathrm{lr}=0.1$ with near-boundary initialisation
+($\varrho_{\rm init}=0.96>0.9$), the hinge is active but its gradient is
+overwhelmed by the task gradient, so a single Adam step overshoots.  Section~\ref{sec:exp3b}
 ablates two alternatives: a softplus hinge (non-zero gradient everywhere) and
 a post-step radius projection (hard-ish clamp every step).  A
 sigmoid-constrained model enforcing $\varrho < 0.98$ by construction achieves
@@ -550,10 +554,11 @@ gradient pressure.
 \subsection{Experiment 3b: Softplus and radius-projection ablation}
 \label{sec:exp3b}
 
-Experiment~3 identified the relu dead-zone as a plausible failure cause:
-relu gradient is exactly zero below the threshold, so a single large
-step can overshoot before any regularisation force fires.  Two
-alternatives address this at different levels:
+Experiment~3 showed that hinge regularisers fail despite being active at
+$\varrho_{\rm init}=0.96>0.9$: the regulariser gradient is overwhelmed by
+the task gradient and Adam momentum, so a single lr=0.1 step crosses the
+unit circle.  Experiment~3b tests two alternatives to distinguish gradient
+dominance from the relu dead-zone (which is only relevant below $\varrho=0.9$):
 \begin{itemize}
 \item \emph{Spectral softplus}: replaces the relu hinge with a softplus
   hinge $\mathrm{softplus}(\beta(\varrho - \tau))/\beta$ ($\beta=10$),
@@ -634,8 +639,9 @@ remain active even below the spectral-radius threshold.
 Adversarial regime (Experiment~3) reveals the fundamental limitation of
 hinge regularisers: at lr = 0.1 with unconstrained radii, 90\% of
 unregularised runs escape the unit disk, and hinge regularisers reduce
-this to at best 80\% failure (Lyapunov, 20\% stable) because a single
-Adam step overshoots the unit circle before the relu gradient fires.
+this to at best 80\% failure (Lyapunov, 20\% stable) because the hinge
+gradient, though active at $\varrho_{\rm init}=0.96>0.9$, is overwhelmed
+by a single lr=0.1 Adam update.
 Experiment~3b ablates a softplus hinge and a post-step radius-projection
 clamp; the projection substantially improves stability by enforcing
 $r_i \leq 0.98$ every step, while the softplus hinge provides similar
@@ -674,15 +680,15 @@ not in the benign regime.
 \paragraph{Hinge regularisers under adversarial gradient pressure.}
 Experiment~3 establishes that relu-based hinges cannot prevent
 instability when learning rates are high enough that a single gradient
-step overshoots the unit circle.  The failure mechanism is the
-\emph{dead-zone} of relu: gradient is exactly zero below the hinge
-threshold, and the threshold ($\varrho = 0.9$) lies 0.06 below the init
-($\varrho = 0.96$), well within a single lr = 0.1 Adam step.
+step overshoots the unit circle.  The failure mechanism is
+\emph{gradient dominance}: at $\varrho_\mathrm{init}=0.96$ the hinge is
+already active (threshold $\varrho=0.9 < 0.96$), but the regulariser
+gradient is insufficient to counteract the task gradient amplified by
+lr~$=0.1$ and Adam momentum.
 Experiment~3b tests two targeted alternatives.  The softplus hinge
-eliminates the dead-zone by providing non-zero gradient everywhere, but
-its effectiveness is limited: the gradient at $\varrho = 0.96$ is
-$\exp(-\beta \cdot 0.04)/(\beta(1+\exp(-\beta \cdot 0.04))) \approx
-0.02$ for $\beta = 10$, too small to counteract a lr = 0.1 Adam update.
+provides non-zero gradient everywhere, but its effectiveness is limited:
+even with a non-zero gradient at $\varrho=0.96$, the penalty is
+overwhelmed by the same large update that defeats the relu hinge.
 Post-step radius projection (hard clamp $r_i \leq 0.98$ after every
 step) is more effective: it enforces the constraint on every iteration
 regardless of gradient magnitude, unlike a penalty that must outweigh
@@ -759,11 +765,11 @@ versus $\leq 36\%$ with random search.  Training-time contour barriers
 preserve larger spectral radii than spectral or Lyapunov penalties, but
 do not improve task loss or resolvent margin---their benefit is
 domain-specific (long-memory tasks).  Under adversarial gradient pressure,
-all hinge regularisers fail to prevent unit-disk escape because the
-relu dead-zone admits a single overshoot step; the softplus ablation
-(Experiment~3b) confirms the dead-zone is not the primary cause---the
-issue is that any gradient-based penalty can be overwhelmed by a
-sufficiently large step.  Hard enforcement mechanisms---radius projection or constrained
+hinge penalties, though active at $\varrho_\mathrm{init}=0.96$, are
+overwhelmed by large Adam updates; the softplus ablation
+(Experiment~3b) confirms the primary bottleneck is gradient dominance,
+not relu non-differentiability---the issue is that any gradient-based
+penalty can be overwhelmed by a sufficiently large step.  Hard enforcement mechanisms---radius projection or constrained
 parameterisation---are reliable under adversarial gradient pressure; soft
 penalties are useful regularisers and diagnostics, but they do not by
 themselves provide hard stability.  The sigmoid-constrained architecture
@@ -784,7 +790,9 @@ off-diagonal structure.  We extend the parameterisation to
   A_0 = \mathrm{diag}(d_0) + U V^H, \quad U, V \in \C^{n \times r},
 \]
 with the diagonal part reparameterised as before and $U, V$
-initialised to zero (so $A_0$ starts diagonal).  Stability of $A_0$
+initialised with small complex Gaussian noise (scale $10^{-2}$) so
+the low-rank branch has nonzero first-order gradients while $A_0$
+remains close to the diagonal warm start.  Stability of $A_0$
 is enforced via a softplus penalty on the spectral radius:
 \[
   \mathcal{P}_{\mathrm{stab}} = \mathrm{softplus}(\varrho(A_0) - (1 - \varepsilon)).
