@@ -294,6 +294,7 @@ def train_diagonal_ssm_adam(
     init_log_r: float | None = None,
     schur_stable: bool = False,
     rho_history_out: list | None = None,
+    project_radius: float | None = None,
 ) -> tuple[ComplexMatrix, list[float], list[float]]:
     """Train a diagonal complex SSM via Adam with an optional stability regulariser.
 
@@ -301,6 +302,8 @@ def train_diagonal_ssm_adam(
     schur_stable=True: sigmoid parameterisation guarantees rho < 0.98 by construction.
     init_log_r: initial log-radius value (e.g. log(0.96) ≈ -0.041 for near-boundary init).
     rho_history_out: if provided, append per-epoch spectral radius (for trajectory figures).
+    project_radius: if set, clamp log_r after each step so radii <= project_radius.
+                    This is a post-step projection (hard-ish, not architectural).
     Returns (A_matrix, task_loss_history, reg_loss_history).
     """
     model = _DiagonalSSM(
@@ -325,6 +328,9 @@ def train_diagonal_ssm_adam(
         total = task_loss + reg_loss
         total.backward()
         optimiser.step()
+        if project_radius is not None:
+            with torch.no_grad():
+                model.log_r.data.clamp_(max=float(np.log(project_radius)))
         task_hist.append(task_loss.item())
         reg_hist.append(reg_loss.item())
         if rho_history_out is not None:

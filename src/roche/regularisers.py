@@ -39,6 +39,21 @@ def spectral_penalty(
     return F.relu(rho - (1.0 - margin))
 
 
+def spectral_softplus(
+    a_diag: torch.Tensor,
+    margin: float = 0.01,
+    beta: float = 10.0,
+) -> torch.Tensor:
+    """Softplus hinge on spectral radius: softplus(beta*(rho - (1-margin))) / beta.
+
+    Unlike relu, provides non-zero gradient everywhere below the threshold,
+    testing whether the relu dead-zone is the cause of adversarial failure.
+    The background penalty at rho << threshold decays exponentially with beta.
+    """
+    rho = torch.max(torch.abs(a_diag))
+    return F.softplus(beta * (rho - (1.0 - margin))) / beta
+
+
 def lyapunov_penalty(
     a_diag: torch.Tensor,
     margin: float = 0.01,

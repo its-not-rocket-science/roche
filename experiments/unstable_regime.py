@@ -29,7 +29,7 @@ import functools
 
 from roche.certificates import certify_on_unit_circle
 from roche.reference import diagonal_reference_from_eigs
-from roche.regularisers import lyapunov_penalty, make_contour_barrier, spectral_penalty
+from roche.regularisers import lyapunov_penalty, make_contour_barrier, spectral_penalty, spectral_softplus
 from roche.ssm import generate_ar_sequence, train_diagonal_ssm_adam
 
 RESULTS_DIR = Path("results/p2exp3")
@@ -68,7 +68,8 @@ def _cert_rate(a_matrices):
     return 100.0 * certified / len(a_matrices)
 
 
-def run_method(name: str, reg_fn, schur_stable: bool = False) -> dict:
+def run_method(name: str, reg_fn, schur_stable: bool = False,
+               project_radius: float | None = None) -> dict:
     rho_vals, stable_count, a_matrices = [], 0, []
     for seed in range(N_SEEDS):
         u, target = _ar_task(seed)
@@ -83,6 +84,7 @@ def run_method(name: str, reg_fn, schur_stable: bool = False) -> dict:
             constrained=False,
             init_log_r=INIT_LOG_R,
             schur_stable=schur_stable,
+            project_radius=project_radius,
         )
         if not np.isfinite(a_mat).all():
             rho = float("inf")
@@ -137,20 +139,24 @@ def main():
     a0_init = diagonal_reference_from_eigs(a_init_mat)
     contour_fn = make_contour_barrier(np.diag(a0_init), num_contour_points=K_CONTOUR, margin=REG_MARGIN)
 
-    spectral_fn = functools.partial(spectral_penalty, margin=REG_MARGIN)
-    lyapunov_fn = functools.partial(lyapunov_penalty, margin=REG_MARGIN)
+    spectral_fn  = functools.partial(spectral_penalty,  margin=REG_MARGIN)
+    softplus_fn  = functools.partial(spectral_softplus, margin=REG_MARGIN)
+    lyapunov_fn  = functools.partial(lyapunov_penalty,  margin=REG_MARGIN)
+    # (name, reg_fn, schur_stable, project_radius)
     methods = [
-        ("none",              None,         False),
-        ("spectral",          spectral_fn,  False),
-        ("lyapunov",          lyapunov_fn,  False),
-        ("contour_barrier",   contour_fn,   False),
-        ("constrained_schur", None,         True),
+        ("none",              None,         False, None),
+        ("spectral",          spectral_fn,  False, None),
+        ("spectral_softplus", softplus_fn,  False, None),
+        ("spectral_proj",     None,         False, 0.98),
+        ("lyapunov",          lyapunov_fn,  False, None),
+        ("contour_barrier",   contour_fn,   False, None),
+        ("constrained_schur", None,         True,  None),
     ]
 
     rows = []
-    for name, reg_fn, schur_stable in methods:
+    for name, reg_fn, schur_stable, proj_r in methods:
         print(f"\n{name}", flush=True)
-        rows.append(run_method(name, reg_fn, schur_stable))
+        rows.append(run_method(name, reg_fn, schur_stable, project_radius=proj_r))
 
     # Print table
     print()
@@ -183,7 +189,7 @@ def main():
     ax1, ax2 = axes2
     stable_rates = [r["stable%"] for r in rows]
     cert_rates   = [r["cert%_stable"] for r in rows]
-    colours = ["#d62728", "#d62728", "#ff7f0e", "#d62728", "#2ca02c"]
+    colours = ["#d62728", "#d62728", "#ff7f0e", "#1f77b4", "#d62728", "#d62728", "#2ca02c"]
     x = np.arange(len(labels))
     ax1.bar(x, stable_rates, color=colours[:len(labels)])
     ax1.set_xticks(x); ax1.set_xticklabels(labels, rotation=15, ha="right")

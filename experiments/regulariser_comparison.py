@@ -23,6 +23,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import functools
+
 import torch
 
 from roche.certificates import certify_on_unit_circle, is_schur_stable, spectral_radius
@@ -35,6 +37,8 @@ from roche.regularisers import (
 )
 from roche.ssm import generate_ar_sequence, train_diagonal_ssm_adam
 
+
+REG_MARGIN = 0.1   # consistent with unstable_regime.py
 
 TASKS = [
     {"desc": "AR(2) short",   "ar_coeffs": [-1.347, -0.490], "max_r": 0.70},
@@ -50,12 +54,12 @@ def make_regulariser(name: str, initial_a: np.ndarray) -> object:
     if name == "none":
         return None
     if name == "spectral":
-        return spectral_penalty
+        return functools.partial(spectral_penalty, margin=REG_MARGIN)
     if name == "lyapunov":
-        return lyapunov_penalty
+        return functools.partial(lyapunov_penalty, margin=REG_MARGIN)
     if name == "contour":
         a0, _ = optimise_diagonal_reference(initial_a, n_steps=200, num_contour_points=128)
-        return make_contour_barrier(a0, num_contour_points=128)
+        return make_contour_barrier(a0, num_contour_points=128, margin=REG_MARGIN)
     raise ValueError(name)
 
 
@@ -130,22 +134,35 @@ def run(args: argparse.Namespace) -> None:
                 all_results[task["desc"]][reg].append(r)
             print()
 
-    # Print summary table
+    # Print summary table with std
     header = (
-        f"{'task':16s}  {'reg':10s}  {'task_loss':>10}  "
-        f"{'rho':>6}  {'min_margin':>10}  {'cert%':>6}"
+        f"{'task':16s}  {'reg':10s}  {'task_loss':>10}  {'±':>9}  "
+        f"{'rho':>6}  {'±':>6}  {'margin':>8}  {'±':>6}  {'cert%':>6}"
     )
     print("\n" + "=" * len(header))
     print(header)
     print("=" * len(header))
+    csv_rows = ["task,reg,mean_loss,std_loss,mean_rho,std_rho,mean_margin,std_margin,cert_pct\n"]
     for task in TASKS:
         for reg in REG_NAMES:
             rs = all_results[task["desc"]][reg]
-            tl = np.mean([r["final_task_loss"] for r in rs])
-            rho = np.mean([r["spectral_radius"] for r in rs])
-            mm = np.mean([r["min_margin"] for r in rs])
-            cp = 100.0 * np.mean([r["certified"] for r in rs])
-            print(f"{task['desc']:16s}  {reg:10s}  {tl:10.4e}  {rho:6.4f}  {mm:+10.4f}  {cp:6.1f}")
+            tl_vals = [r["final_task_loss"] for r in rs]
+            rho_vals = [r["spectral_radius"] for r in rs]
+            mm_vals  = [r["min_margin"] for r in rs]
+            tl  = np.mean(tl_vals);  tl_s  = np.std(tl_vals, ddof=1)
+            rho = np.mean(rho_vals); rho_s = np.std(rho_vals, ddof=1)
+            mm  = np.mean(mm_vals);  mm_s  = np.std(mm_vals, ddof=1)
+            cp  = 100.0 * np.mean([r["certified"] for r in rs])
+            print(
+                f"{task['desc']:16s}  {reg:10s}  {tl:10.4e}  {tl_s:9.4e}  "
+                f"{rho:6.4f}  {rho_s:6.4f}  {mm:+8.4f}  {mm_s:6.4f}  {cp:6.1f}"
+            )
+            csv_rows.append(
+                f"{task['desc']},{reg},{tl:.6e},{tl_s:.6e},"
+                f"{rho:.6f},{rho_s:.6f},{mm:.6f},{mm_s:.6f},{cp:.1f}\n"
+            )
+    with open(outdir / "summary_with_std.csv", "w") as f:
+        f.writelines(csv_rows)
 
     # Figure: learning curves on AR(4) hard, all regularisers
     hard_task = TASKS[2]["desc"]

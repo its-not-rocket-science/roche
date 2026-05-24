@@ -56,9 +56,11 @@ the surrogate approximation error grows faster than the available margin.
 Rouch\'e certificates offer no advantage over the real-polynomial check on
 real-analytic paths; both become vacuous on realistic neural paths beyond
 short interpolation scales.  A counterexample shows why naive complexification
-destroys analyticity.  Theorem~\ref{thm:main} provides a rigorous connection
-between zero-freeness and pathwise positivity, and practical guidelines on
-when complex-analytic certification is not worth attempting close the paper.
+destroys analyticity.  \emph{A sound complex-analytic certificate exists, but
+it is dominated by real-polynomial positivity, and surrogate-error estimates
+must be verified: grid-based $\epsilon_j$ can create false certificates}---
+interval-arithmetic experiments confirm that the verified bound is $1.44\times$
+the grid estimate on average, with $40\%$ false-positive rate at tight margins.
 \end{abstract}
 
 %% ============================================================
@@ -108,11 +110,14 @@ MLP experiments (Section~\ref{sec:exp_networks}) confirm that Rouch\'e offers
 no improvement over the real-polynomial check and that certification collapses
 with path length for both methods.  Practical guidelines on when
 complex-analytic path certification is not worth attempting close the paper in
-Section~\ref{sec:discussion}.  \emph{This is a diagnostic negative-results
-paper:} we find no setting in which Rouch\'e certificates outperform the
-simpler real-polynomial check, and we characterise the geometric reason for
-this failure.  The results do not constitute formal verification because
-$\epsilon_j$ is estimated rather than rigorously bounded.
+Section~\ref{sec:discussion}.
+\emph{Paper positioning:} a sound complex-analytic certificate exists, but
+it is dominated by real-polynomial positivity in every tested setting, and
+surrogate-error estimates must be verified---grid-based $\epsilon_j$ can
+create false certificates.  The geometric reason for Rouch\'e's failure is
+characterised, and the results do not constitute formal verification because
+$\epsilon_j$ is estimated rather than rigorously bounded
+(Section~\ref{sec:exp_verified}, Appendix~\ref{app:rigorous}).
 
 %% ============================================================
 \section{Background and Setup}
@@ -701,13 +706,21 @@ Chebyshev interpolant $Q_j$ satisfies~\cite{trefethen2013approximation}
   \|g_j - Q_j\|_{[0,1]} \;\leq\; \frac{4M}{\rho^n(\rho - 1)}.
   \label{eq:bernstein}
 \end{equation}
-For a $\tanh$-MLP the nearest poles of the complexified $g_j$ lie at
-$|\operatorname{Im}| = \pi/4 \approx 0.785$ (Proposition~\ref{prop:counterex}),
-so choosing $\rho < e^{0.785} \approx 2.19$ avoids all poles.  $M$ can
-then be bounded by evaluating the network at complex inputs in
-$\mathcal{E}_\rho$ via complex-arithmetic forward passes and bounding
-output magnitudes, giving a computable $\epsilon_j^{\mathrm{rig}}$ that
-makes~\eqref{eq:bernstein} a true upper bound.
+In the one-dimensional $\tanh$ example of
+Proposition~\ref{prop:counterex}, the nearest poles lie at
+$|\operatorname{Im}| = \pi/4 \approx 0.785$, suggesting an admissible
+ellipse scale of order $\rho \lesssim e^{0.785} \approx 2.19$ for that
+isolated case.  For a full network composed with an arbitrary path
+$\gamma$, the relationship between nearest complex singularity, path
+scaling, affine layer transformations, and the Bernstein ellipse parameter
+is not simply $\rho < e^{0.785}$: $\rho$ must be determined
+layer-by-layer from the network weights and path geometry, or verified
+numerically by confirming that $g_j$ is analytic throughout
+$\mathcal{E}_\rho$.  Given a valid $\rho$, $M$ can then be bounded by
+evaluating the network at complex inputs in $\mathcal{E}_\rho$ via
+complex-arithmetic forward passes, giving a computable
+$\epsilon_j^{\mathrm{rig}}$ that makes~\eqref{eq:bernstein} a true
+upper bound.
 
 \paragraph{Interval arithmetic bound.}
 Alternatively, $g_j - Q_j$ at any $t \in [0,1]$ can be enclosed
