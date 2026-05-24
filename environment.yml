@@ -1,0 +1,17 @@
+name: roche
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    - numpy==1.26.4
+    - scipy==1.13.1
+    - matplotlib==3.10.0
+    - scikit-learn==1.6.1
+    - pytest>=7.0
+    - ruff>=0.4
+    - -e .

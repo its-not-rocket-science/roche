@@ -598,11 +598,10 @@ constrained\_schur$^\dagger$ & 10/10 & 0/10 & 0.791 & 10/10 \\
 
 \paragraph{Key findings.}
 Softplus provides no improvement over the relu baseline (both 1/10 stable),
-confirming that the dead-zone is \emph{not} the primary failure mechanism.
-At lr = 0.1 the Adam update overshoots the unit circle in one step even
-when the softplus gradient is non-zero (at $\varrho=0.96$ the softplus
-gradient is $\approx 0.02$ for $\beta=10$, insufficient to counteract a
-lr = 0.1 step).  Post-step radius projection (spectral\_proj) achieves
+confirming that gradient dominance---not relu non-differentiability---is the
+primary failure mechanism: even with non-zero gradient everywhere, the softplus
+penalty is overwhelmed by the task gradient amplified by lr~$=0.1$ and Adam
+momentum.  Post-step radius projection (spectral\_proj) achieves
 10/10 stability: the projection fires every step regardless of gradient
 magnitude, enforcing $\varrho \leq 0.98$ unconditionally.  The projection
 is not architecturally equivalent to constrained\_schur (it does not
@@ -611,8 +610,8 @@ same empirical result in this regime.
 
 The softplus ablation shows that the failure is \emph{not} primarily
 non-differentiability of the relu hinge: when the optimiser step is large
-enough to cross the stability boundary in one update, a smooth penalty with
-small local gradient still cannot enforce stability.
+enough to cross the stability boundary in one update, any gradient-based
+penalty is overwhelmed regardless of smoothness.
 
 %% ============================================================
 \section{Results}

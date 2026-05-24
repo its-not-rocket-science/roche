@@ -30,5 +30,24 @@ jobs:
       - name: Lint
         run: ruff check src/ tests/
 
-      - name: Test
+      - name: Unit tests
         run: pytest tests/ -v --tb=short
+
+      - name: Smoke — Paper 1 experiments
+        run: |
+          python experiments/synthetic_certification.py --quick
+          python experiments/discretisation_correctness.py --quick
+          python experiments/trained_ssm.py --quick
+          python experiments/runtime_scalability.py --quick
+
+      - name: Smoke — Paper 2 experiments
+        run: |
+          python experiments/reference_quality.py --quick
+          python experiments/regulariser_comparison.py --quick
+          python experiments/unstable_regime.py --quick
+
+      - name: Smoke — Paper 3 experiments
+        run: |
+          python experiments/path_cert_synthetic.py --quick
+          python experiments/path_cert_networks.py --quick
+          python experiments/path_cert_verified.py --quick
