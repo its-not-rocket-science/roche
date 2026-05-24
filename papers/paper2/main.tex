@@ -59,7 +59,8 @@ In the standard constrained regime all three achieve 100\% post-hoc
 certification.  With margin $\tau=0.1$, spectral and Lyapunov penalties
 are inactive during training (models naturally maintain $\varrho<0.9$),
 producing results identical to the unregularised baseline.  The contour
-barrier shows a small but consistent $\varrho$ reduction ($\Delta\varrho
+barrier is the only soft penalty that does not collapse to the unregularised
+baseline, producing a modest but consistent $\varrho$ reduction ($\Delta\varrho
 \approx 0.03$) on long-memory tasks via resolvent-geometry penalties that
 remain active below the spectral-radius threshold.
 
@@ -372,6 +373,15 @@ Tasks: AR(2) short-memory ($\varrho_{\max} = 0.70$);
 AR(4) long-memory ($\varrho_{\max} = 0.92$);
 AR(4) hard ($\varrho_{\max} = 0.97$).
 
+\noindent\textbf{Threshold choice.}
+We use $\tau = 0.1$ (firing threshold $\varrho = 0.9$) as a deliberately
+non-trivial stability buffer.  Smaller $\tau$ values make spectral and
+Lyapunov penalties fire less often in benign training; larger values are
+more aggressive and increasingly suppress the long-memory modes needed for
+AR prediction.  As Experiment~3 shows, adjusting $\tau$ alone does not
+provide hard stability: a single Adam step at lr = 0.1 can still cross the
+unit circle regardless of where the penalty threshold is placed.
+
 \begin{table}[t]
 \centering
 \caption{Experiment~2: Regulariser comparison ($n=8$, Adam 500 epochs,
@@ -594,6 +604,11 @@ is not architecturally equivalent to constrained\_schur (it does not
 guarantee stability during the forward pass itself), but achieves the
 same empirical result in this regime.
 
+The softplus ablation shows that the failure is \emph{not} primarily
+non-differentiability of the relu hinge: when the optimiser step is large
+enough to cross the stability boundary in one update, a smooth penalty with
+small local gradient still cannot enforce stability.
+
 %% ============================================================
 \section{Results}
 \label{sec:results}
@@ -612,7 +627,7 @@ post-hoc certification in the standard constrained regime.  With margin
 $\tau=0.1$, spectral and Lyapunov penalties are inactive during training
 (models naturally maintain $\varrho<0.9$) and produce results identical
 to the unregularised baseline; task losses differ by $\leq 0.3\%$.  The
-contour barrier shows a small but consistent $\varrho$ reduction on AR(4)
+contour barrier shows a modest but consistent $\varrho$ reduction on AR(4)
 tasks ($\Delta\varrho\approx0.03$) via resolvent-geometry penalties that
 remain active even below the spectral-radius threshold.
 
@@ -648,7 +663,7 @@ SSM tasks in the benign regime (Table~\ref{tab:regularisers}).  With
 margin $\tau=0.1$, spectral and Lyapunov penalties are inactive: models
 naturally converge to $\varrho\approx0.74$--$0.82$, below the firing
 threshold $\varrho=0.9$.  Task losses are indistinguishable.  The contour
-barrier shows a small but consistent $\varrho$ reduction on AR(4) tasks
+barrier shows a modest but consistent $\varrho$ reduction on AR(4) tasks
 ($\Delta\varrho\approx0.03$), because it penalises resolvent-margin
 shortfall rather than spectral radius and remains sensitive to the
 boundary geometry even when $\varrho$ is comfortably below threshold.
@@ -678,6 +693,38 @@ or momentum choices.  This is analogous to architectural stability
 constraints in unitary RNNs~\cite{arjovsky2016unitary} and
 Lie-group-constrained networks~\cite{lezcano2019cheap}, which enforce
 hard spectral bounds without any regularisation term.
+
+\paragraph{Practitioner guide.}
+Table~\ref{tab:practitioner} summarises the recommended stability mechanism
+for common settings, based on the experimental findings.
+
+\begin{table}[t]
+\centering
+\caption{Practitioner decision guide: stability mechanism by setting.}
+\label{tab:practitioner}
+\small
+\begin{tabular}{p{2.9cm}p{3.5cm}p{4.3cm}}
+\toprule
+Setting / constraint & Recommended mechanism & Reason \\
+\midrule
+Diagonal SSM, post-hoc certification
+  & Eig-shrunk or gradient-optimised diagonal reference
+  & Fast; certifies trained diagonal SSMs at 100\% \\
+Benign diagonal AR training
+  & No penalty, or modest contour barrier
+  & Stability emerges naturally; contour gives small geometry-aware $\varrho$ reduction \\
+High-lr or near-boundary instability
+  & Projection or constrained parameterisation
+  & Hard enforcement works when soft penalties are overwhelmed \\
+Need long memory
+  & Avoid aggressive spectral/Lyapunov margins
+  & May suppress modes needed for memory \\
+Dense/non-normal dynamics
+  & Do not rely on diagonal references
+  & Need structured non-diagonal references or separate analysis \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Limitations.}
 \emph{Scope.}
@@ -716,11 +763,13 @@ all hinge regularisers fail to prevent unit-disk escape because the
 relu dead-zone admits a single overshoot step; the softplus ablation
 (Experiment~3b) confirms the dead-zone is not the primary cause---the
 issue is that any gradient-based penalty can be overwhelmed by a
-sufficiently large step.  Post-step radius projection is substantially
-more effective.  The sigmoid-constrained architecture achieves 100\%
-stability on every seed, demonstrating that hard constraints and soft
-regularisers occupy complementary roles and cannot substitute for each
-other.
+sufficiently large step.  Hard enforcement mechanisms---radius projection or constrained
+parameterisation---are reliable under adversarial gradient pressure; soft
+penalties are useful regularisers and diagnostics, but they do not by
+themselves provide hard stability.  The sigmoid-constrained architecture
+achieves 100\% stability on every seed, demonstrating that soft and hard
+stability mechanisms occupy complementary roles and cannot substitute for
+each other.
 
 %% ============================================================
 \appendix

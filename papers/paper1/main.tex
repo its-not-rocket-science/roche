@@ -58,9 +58,10 @@ that score $-1.36$ under a scalar reference
 
 The resolvent certificate is better conditioned numerically than the determinant
 and admits a clean structural interpretation for diagonal SSMs; it does not,
-however, universally outperform the determinant on certification counts.
+however, certify more instances than the determinant across all matrix families.
 On dense normal and non-normal families the determinant certifies marginally
-more instances, while the resolvent is superior on diagonal-structured matrices.
+more instances, while the resolvent achieves higher certification rates on
+diagonal-structured matrices.
 The resolvent's avoidance of polynomial ill-conditioning becomes decisive only
 as $n \gtrsim 64$.  The primary value of these certificates lies not in
 competing with spectral-radius tests: they provide interpretable perturbation
@@ -127,6 +128,18 @@ A_0)^{-1}\Delta A}_2 < m_{\mathrm{res}}$ on the unit circle preserves stability
     pseudospectral sensitivity exceeds what the reference class can represent,
     motivating structured references beyond the diagonal family.
 \end{itemize}
+
+\paragraph{Why contour certificates when $\varrho(A) < 1$ is exact?}
+The point is not to replace eigendecomposition on small dense matrices.
+A contour certificate supplies a \emph{stability region} around a chosen
+stable reference $A_0$: a positive resolvent margin says not only that $A$
+is stable, but that it is stable by a perturbation buffer that can be
+inspected, optimised, and reused as a training signal (as in the companion
+paper on reference optimisation and contour barriers).  Conversely, a negative margin on a stable matrix is
+\emph{diagnostic}: it identifies the price paid by a sufficient condition,
+especially under non-normality or poor reference choice.  This makes
+contour certificates complementary to spectral-radius checks rather than
+competitors.
 
 Section~\ref{sec:det} develops a scalar determinant certificate
 (Theorem~\ref{thm:det}) by applying classical Rouch\'e directly to
@@ -493,7 +506,7 @@ Key findings:
     norms; mean resolvent margins for Jordan matrices remain near $-0.57$
     to $-1.81$, indicating the Lipschitz structure is more regular than
     the determinant.
-(iii) The resolvent certificate outperforms the determinant on
+(iii) The resolvent certificate certifies more instances than the determinant on
     diagonal-plus-low-rank matrices (6 vs.\ 5 certified), where
     the diagonal reference structure matches the matrix structure.
     For fully dense normal and non-normal families the determinant
@@ -811,6 +824,15 @@ bounds are possible but unnecessary for the verification purpose here.
 \section{Limitations}
 \label{sec:limitations}
 
+The conservatism of these certificates is an interpretable trade-off, not a
+failure.  A large positive margin is a strong perturbation certificate; a small
+positive margin is valid but fragile.  A negative margin on a stable matrix is a
+\emph{false negative} whose distribution reveals whether the reference class is
+too weak: Jordan and non-normal families achieve negative margins not because
+the theorems fail, but because diagonal or scalar references cannot represent
+the pseudospectral geometry of those matrices.  Reference improvement is
+therefore the principled response to false negatives.
+
 \begin{enumerate}
   \item \emph{Sufficiency only.}  A matrix can be Schur stable yet fail both
     certificates: this happens whenever no close stable reference exists with
@@ -854,11 +876,20 @@ The resolvent certificate is better conditioned and structurally more
 interpretable than the determinant: it avoids polynomial ill-conditioning at
 large $n$, reduces to a per-mode geometric condition for diagonal $A_0$, and
 connects to the stability radius via the small-gain condition.  It does not,
-however, universally outperform the determinant on certification counts.  On
-dense normal and non-normal families the determinant certifies marginally more
+however, certify more instances than the determinant across all matrix families.
+On dense normal and non-normal families the determinant certifies marginally more
 instances because it is less sensitive to off-diagonal perturbation norms.
 The resolvent's advantage becomes decisive only as $n \gtrsim 64$, where
 polynomial evaluation becomes numerically unreliable.
+
+The resolvent certificate can be read as a discrete-time small-gain condition on
+the loop $(zI-A_0)^{-1}(A_0 - A)$ over the unit circle: it lower-bounds the
+perturbation size needed to push a characteristic zero across the contour,
+connecting the Rouch\'e margin directly to pseudospectral and complex
+stability-radius notions~\cite{hinrichsen1986stability,trefethen2005spectra}.
+This perspective also explains why non-normal matrices are hard to certify:
+their resolvents can be large even when all eigenvalues lie comfortably inside
+the unit disk.
 
 The deterministic finite-grid theorem converts sampled margin checks into
 grid-verified certificates under a numerically estimated Lipschitz bound;

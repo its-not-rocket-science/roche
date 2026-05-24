@@ -556,11 +556,32 @@ Across all settings, the real-polynomial positivity check equals or exceeds
 the Rouch\'e certificate in certification rate, with no exception.  The
 Rouché certificate's complex-domain geometry provides no practical advantage
 and introduces a second failure mode (contour excursion) absent from the
-real check.
+real check.  Experiment~P3-4 (Section~\ref{sec:exp_verified}) adds a second
+key finding: grid-estimated approximation errors are systematically
+under-estimates, with verified interval bounds $1.44\times$ larger on
+average; at tight margins, 40\% of grid-certified instances are false
+positives.  Sound certificates require verified $\epsilon_j$, not grid
+estimates.
 
 %% ============================================================
 \section{Discussion and Practical Guidelines}
 \label{sec:discussion}
+
+\subsection{Certification budget}
+
+Pathwise surrogate certification has a finite budget.  The available real
+margin $\min_t Q_j(t)$ must pay for approximation error $\epsilon_j$ and any
+verified-error slack.  The real-polynomial check spends only this budget: it
+certifies exactly when the surrogate margin exceeds the error bound.  The
+Rouch\'e check adds a further cost---\emph{complex-domain excursion}---because
+$Q_j$ must remain zero-free on a two-dimensional complex neighbourhood rather
+than merely positive on the real path.  Our experiments show that this extra
+cost is never repaid: even exact surrogates with $\epsilon_j \approx 0$ can
+fail the Rouch\'e condition because the polynomial grows large off the real
+axis.  The key practical implication is that tightening the surrogate fit
+(reducing $\epsilon_j$) helps the real check but does not fix the Rouch\'e
+failure; the complex-excursion cost is an intrinsic property of the polynomial
+degree and domain geometry.
 
 \subsection{When Rouch\'e certificates are informative}
 
@@ -589,6 +610,17 @@ where $\omega$ is the modulus of continuity.  As $L$ grows, both the variation
 of $g_j$ and the required degree increase, but the margin $\min_t g_j(t)$
 typically decreases near class boundaries.  The certification condition
 $\min Q_j > \epsilon_j$ becomes impossible to satisfy.
+
+\subsection{Boundary of applicability}
+
+The boundary is empirical but clear: short, smooth, same-class paths with
+low surrogate degree and a verified error bound can be certified by the
+real-polynomial test.  Longer paths and higher-degree surrogates consume the
+margin through approximation error, while Rouch\'e additionally fails through
+complex excursion.  This is a boundary condition for practitioners, not a
+universal lower bound; there is no clean ``maximum degree or path length''
+theorem, because both the available margin and the achievable error depend on
+the specific network, path, and class structure.
 
 \subsection{Practical guidelines}
 
@@ -680,12 +712,15 @@ interpolation scales, both certificates become vacuous as surrogate
 approximation error consumes the available margin, with Rouché collapsing
 faster due to the compounding complex-excursion failure mode.
 
-This negative result clarifies the boundary between elegant complex analysis
-and practical neural network verification: Rouch\'e zero-counting is
-well-suited to settings where the analytic structure is intrinsic (as in
-Papers~1 and~2, where the contour is the unit circle and the matrix
-characteristic function is already analytic), but not to settings where
-analyticity must be imposed through a surrogate on an arbitrary real path.
+This negative result is useful precisely because it closes a tempting route:
+complex-analytic zero-counting is elegant and sound under surrogate
+assumptions, but for standard classifier paths it is dominated by
+real-polynomial positivity and made fragile by surrogate-error verification.
+The niche where Rouch\'e may still be useful is not arbitrary deep-network
+path verification, but low-dimensional, smooth, intrinsically analytic models
+where the complex domain is part of the model rather than imposed after the
+fact---precisely the setting of Papers~1 and~2, where the contour is the unit
+circle and the matrix characteristic function is already analytic.
 
 %% ============================================================
 \appendix

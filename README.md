@@ -1,6 +1,12 @@
 # Roche
 
-Research code for a three-paper series on Rouché-type perturbation certificates for learned state-space models (SSMs).
+This repository studies what Rouché-type complex-analytic perturbation tools can and cannot offer modern
+machine learning. Paper 1 develops contour certificates for stability of learned state-space dynamics.
+Paper 2 turns the certificate geometry into reference optimisation and training-time stability
+regularisation, showing that soft penalties cannot replace hard stability enforcement. Paper 3 tests
+whether the same zero-counting idea transfers to classifier-path robustness and finds a constructive
+negative result: real-polynomial positivity dominates Rouché on surrogate paths. Together, the papers
+trace a theory-to-practice-to-limits arc.
 
 ## Papers
 
@@ -31,9 +37,10 @@ experiments/
   runtime_scalability.py         # Paper 1, Exp 4: wall-time vs matrix size
   reference_quality.py           # Paper 2, Exp 1: reference method comparison
   regulariser_comparison.py      # Paper 2, Exp 2: regulariser comparison on AR tasks
-  unstable_regime.py             # Paper 2, Exp 3: adversarial unconstrained SSM
+  unstable_regime.py             # Paper 2, Exp 3+3b: adversarial unconstrained SSM + softplus/projection ablation
   path_cert_synthetic.py         # Paper 3, Exp 1: synthetic polynomial classifiers
   path_cert_networks.py          # Paper 3, Exp 2+3: two-moons MLP + scaling limits
+  path_cert_verified.py          # Paper 3, Exp 4: verified vs grid error bounds
 
 papers/
   paper1/main.tex                # all tables and figures filled
@@ -42,8 +49,8 @@ papers/
 
 results/
   exp{1-4}/                      # Paper 1 figures
-  p2exp{1-2}/                    # Paper 2 figures
-  p3exp{1-2}/                    # Paper 3 figures
+  p2exp{1-3}/                    # Paper 2 figures (p2exp3 = adversarial regime)
+  p3exp{1-2,4}/                  # Paper 3 figures (p3exp4 = verified error bounds)
 
 tests/
   test_certificates.py
