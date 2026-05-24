@@ -181,6 +181,15 @@ def run(args: argparse.Namespace) -> None:
             title=kind,
         )
 
+    import csv
+    csv_path = outdir / "summary.csv"
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["kind","true_stable","det_cert","res_cert",
+                                               "fn_rate_det","fn_rate_res","mean_det_margin","mean_res_margin"])
+        writer.writeheader()
+        for r in results:
+            writer.writerow({k: (f"{v:.6f}" if isinstance(v, float) else v) for k, v in r.items()})
+
     print(f"\nFigures saved to {outdir}/")
 
 
@@ -193,7 +202,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--outdir", type=str, default="results/exp1")
     parser.add_argument("--verbose", action="store_true")
-    return parser.parse_args()
+    parser.add_argument("--quick", action="store_true",
+                        help="Fast smoke: 3 matrices, K=64, first 2 families")
+    args = parser.parse_args()
+    if args.quick:
+        args.num_matrices = 3
+        args.num_contour = 64
+    return args
 
 
 if __name__ == "__main__":

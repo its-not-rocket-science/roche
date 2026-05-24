@@ -81,6 +81,13 @@ def run(args: argparse.Namespace) -> None:
         ),
     }
 
+    if args.quick:
+        test_cases = dict(list(test_cases.items())[:2])
+        grid_sizes_run = [64, 256]
+    else:
+        grid_sizes_run = GRID_SIZES
+
+    csv_rows = []
     for name, (a, a0) in test_cases.items():
         stable = is_schur_stable(a)
         rho = spectral_radius(a)
@@ -105,7 +112,7 @@ def run(args: argparse.Namespace) -> None:
         min_margins_list = []
         criteria_list = []
 
-        for N in GRID_SIZES:
+        for N in grid_sizes_run:
             points = unit_circle_grid(N)
             margins = resolvent_margins(a, a0, points)
             min_m = float(np.min(margins))
@@ -119,6 +126,12 @@ def run(args: argparse.Namespace) -> None:
             rigorous_certs.append(res_rigorous.certified)
             min_margins_list.append(min_m)
             criteria_list.append(criterion)
+            csv_rows.append({
+                "case": name, "N": N, "min_margin": f"{min_m:.6e}",
+                "L_est": f"{L_est:.6e}", "criterion": f"{criterion:.6e}",
+                "sampled_cert": int(res_sampled.certified),
+                "rigorous_cert": int(res_rigorous.certified),
+            })
 
             print(
                 f"  {N:6d}  {min_m:+10.4e}  {L_est:10.4e}  {criterion:10.4e}"
@@ -126,20 +139,28 @@ def run(args: argparse.Namespace) -> None:
             )
 
         # Flag any false positives (certified but not ground-truth certified)
-        for i, N in enumerate(GRID_SIZES):
+        for i, N in enumerate(grid_sizes_run):
             if sampled_certs[i] and not truth_cert:
                 print(f"  *** FALSE POSITIVE (sampled) at N={N} ***")
             if rigorous_certs[i] and not truth_cert:
                 print(f"  *** FALSE POSITIVE (rigorous) at N={N} ***")
 
-        plot_discretisation_study(
-            GRID_SIZES,
-            sampled_certs,
-            rigorous_certs,
-            min_margins_list,
-            criteria_list,
-            path=outdir / f"disc_{name}.png",
-        )
+        if not args.quick:
+            plot_discretisation_study(
+                grid_sizes_run,
+                sampled_certs,
+                rigorous_certs,
+                min_margins_list,
+                criteria_list,
+                path=outdir / f"disc_{name}.png",
+            )
+
+    import csv
+    with open(outdir / "summary.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["case","N","min_margin","L_est","criterion",
+                                               "sampled_cert","rigorous_cert"])
+        writer.writeheader()
+        writer.writerows(csv_rows)
 
     print(f"\nFigures saved to {outdir}/")
 
@@ -148,6 +169,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--outdir", type=str, default="results/exp2")
+    parser.add_argument("--quick", action="store_true",
+                        help="Fast smoke: 2 grid sizes, 2 test cases")
     return parser.parse_args()
 
 

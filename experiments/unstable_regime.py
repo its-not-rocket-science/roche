@@ -128,14 +128,14 @@ def run_trajectory(name: str, reg_fn, schur_stable: bool = False, seed: int = 0)
     return rho_hist
 
 
-def main():
-    u0, target0 = _ar_task(0)
-    # Build contour barrier from eig-shrunk reference on seed-0 task
-    a_init_mat, _, _ = train_diagonal_ssm_adam(
-        u0, target0,
-        n_state=N_STATE, n_epochs=50, lr=LR,
-        seed=0, constrained=False, init_log_r=INIT_LOG_R,
-    )
+def main(n_seeds: int = N_SEEDS, outdir: Path = RESULTS_DIR):
+    from roche.ssm import _DiagonalSSM
+    outdir.mkdir(parents=True, exist_ok=True)
+    # Build contour barrier from the INITIAL model (before any training).
+    # The reference is computed once from the initial model weights and frozen;
+    # this matches the paper description in Section 4.
+    init_model = _DiagonalSSM(N_STATE, seed=0, constrained=False, init_log_r=INIT_LOG_R)
+    a_init_mat = init_model.transition_matrix()
     a0_init = diagonal_reference_from_eigs(a_init_mat)
     contour_fn = make_contour_barrier(np.diag(a0_init), num_contour_points=K_CONTOUR, margin=REG_MARGIN)
 
@@ -170,18 +170,33 @@ def main():
         )
     print("  * mean_rho excludes diverged (NaN/inf) runs")
 
+    # CSV summary
+    import csv
+    csv_path = outdir / "summary.csv"
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["method", "stable_pct", "mean_rho", "n_diverged", "cert_pct_stable"])
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({
+                "method": r["method"],
+                "stable_pct": f"{r['stable%']:.1f}",
+                "mean_rho": f"{r['mean_rho']:.4f}",
+                "n_diverged": r["n_diverged"],
+                "cert_pct_stable": f"{r['cert%_stable']:.1f}",
+            })
+
     # Figure: spectral radius distribution per method
-    fig, ax = plt.subplots(figsize=(9, 4))
     labels = [r["method"] for r in rows]
     data   = [r["rho_vals"] for r in rows]
-    ax.boxplot(data, labels=labels)
+    fig, ax = plt.subplots(figsize=(9, 4))
+    ax.boxplot(data, tick_labels=labels)
     ax.axhline(1.0, color="r", linestyle="--", linewidth=1, label="unit circle")
     ax.set_ylabel("final spectral radius ρ")
-    ax.set_title(f"Unconstrained SSM (lr={LR}, init ρ=0.96, {N_SEEDS} seeds)")
+    ax.set_title(f"Unconstrained SSM (lr={LR}, init ρ=0.96, {n_seeds} seeds)")
     ax.tick_params(axis="x", rotation=15)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(RESULTS_DIR / "rho_distribution.pdf", bbox_inches="tight")
+    fig.savefig(outdir / "rho_distribution.pdf", bbox_inches="tight")
     plt.close(fig)
 
     # Figure: stable% and cert% bar chart
@@ -200,7 +215,7 @@ def main():
     ax2.set_ylabel("cert% (stable runs only)"); ax2.set_ylim(0, 110)
     ax2.set_title("Post-hoc cert rate (stable only)")
     fig2.tight_layout()
-    fig2.savefig(RESULTS_DIR / "stability_and_cert.pdf", bbox_inches="tight")
+    fig2.savefig(outdir / "stability_and_cert.pdf", bbox_inches="tight")
     plt.close(fig2)
 
     # Figure: rho trajectory for one representative seed
@@ -220,11 +235,21 @@ def main():
     ax3.set_title(f"Rho trajectory (seed 0, lr={LR}, init ρ=0.96)")
     ax3.legend(fontsize=8)
     fig3.tight_layout()
-    fig3.savefig(RESULTS_DIR / "rho_trajectory.pdf", bbox_inches="tight")
+    fig3.savefig(outdir / "rho_trajectory.pdf", bbox_inches="tight")
     plt.close(fig3)
 
-    print(f"\nFigures saved to {RESULTS_DIR}/")
+    print(f"\nFigures saved to {outdir}/")
+    print(f"CSV summary: {csv_path}")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quick", action="store_true",
+                        help="Fast smoke run: 2 seeds, 30 epochs")
+    parser.add_argument("--outdir", type=str, default=str(RESULTS_DIR))
+    args = parser.parse_args()
+    if args.quick:
+        N_SEEDS = 2
+        N_EPOCHS = 30
+    main(n_seeds=N_SEEDS, outdir=Path(args.outdir))

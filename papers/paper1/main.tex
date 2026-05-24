@@ -854,7 +854,9 @@ therefore the principled response to false negatives.
   \item \emph{Numerical Lipschitz bound.}  The bound $L = \kappa^2 \norm{A_0 - A}$
     is computed numerically; for a fully validated certificate an analytic
     bound on $\kappa$ is required (e.g.\ via interval arithmetic or pseudospectral
-    radius bounds).
+    radius bounds).  One tractable case: when $A_0$ is diagonal with spectral radius
+    $\varrho(A_0) < 1$, the Neumann series gives $\kappa \leq 1/(1-\varrho(A_0))$
+    analytically, yielding a validated $L$ without interval arithmetic.
 \end{enumerate}
 
 %% ============================================================

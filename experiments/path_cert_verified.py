@@ -122,12 +122,26 @@ def summarise(results: list[dict]) -> dict:
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quick", action="store_true",
+                        help="Fast smoke: 10 instances per cell")
+    parser.add_argument("--outdir", type=str, default=str(RESULTS_DIR))
+    args = parser.parse_args()
+
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    n_instances = 10 if args.quick else N_INSTANCES
+
     rng = np.random.default_rng(RNG_SEED)
     all_rows: list[tuple[float, list[dict]]] = []
 
     for mm in MIN_MARGINS:
-        print(f"  min_margin={mm:.2f}", flush=True)
-        results = run_cell(mm, rng)
+        print(f"  min_margin={mm:.3f}", flush=True)
+        results = []
+        for _ in range(n_instances):
+            poly_true = make_poly(TRUE_DEG, mm, rng)
+            results.append(run_instance(poly_true))
         all_rows.append((mm, results))
 
     # Print table
@@ -147,7 +161,7 @@ def main() -> None:
         )
 
     # Figure: scatter eps_rig vs eps_grid for all instances, coloured by false_pos
-    fig, axes = plt.subplots(1, 3, figsize=(12, 3.5))
+    fig, axes = plt.subplots(1, len(MIN_MARGINS), figsize=(12, 3.5))
     for ax, (mm, results) in zip(axes, all_rows):
         eg = np.array([r["eps_grid"] for r in results])
         er = np.array([r["eps_rig"]  for r in results])
@@ -161,23 +175,27 @@ def main() -> None:
         ax.set_ylabel(r"$\epsilon^{\rm rig}$")
         ax.set_title(f"min margin = {mm}")
         ax.legend(fontsize=7)
-    fig.tight_layout()
-    fig.savefig(RESULTS_DIR / "verified_vs_grid.pdf", bbox_inches="tight")
-    plt.close(fig)
-    print(f"\nFigure saved to {RESULTS_DIR}/verified_vs_grid.pdf")
+    if not args.quick:
+        fig.tight_layout()
+        fig.savefig(outdir / "verified_vs_grid.pdf", bbox_inches="tight")
+        plt.close(fig)
+        print(f"\nFigure saved to {outdir}/verified_vs_grid.pdf")
+    else:
+        plt.close(fig)
 
-    # Save summary CSV for paper
-    with open(RESULTS_DIR / "summary.txt", "w") as f:
-        f.write("min_margin,mean_eps_grid,mean_eps_rig,mean_ratio,"
-                "cert_grid_pct,cert_rig_pct,false_pos_pct\n")
+    import csv
+    with open(outdir / "summary.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["min_margin","mean_eps_grid","mean_eps_rig","mean_ratio",
+                         "cert_grid_pct","cert_rig_pct","false_pos_pct","false_pos_cond_pct"])
         for mm, results in all_rows:
             s = summarise(results)
-            f.write(
-                f"{mm},{s['mean_eps_grid']:.6f},{s['mean_eps_rig']:.6f},"
-                f"{s['mean_ratio']:.4f},{s['cert_grid_pct']:.1f},"
-                f"{s['cert_rig_pct']:.1f},{s['false_pos_pct']:.1f},"
-                f"{s['false_pos_cond_pct']:.1f}\n"
-            )
+            writer.writerow([
+                mm, f"{s['mean_eps_grid']:.6f}", f"{s['mean_eps_rig']:.6f}",
+                f"{s['mean_ratio']:.4f}", f"{s['cert_grid_pct']:.1f}",
+                f"{s['cert_rig_pct']:.1f}", f"{s['false_pos_pct']:.1f}",
+                f"{s['false_pos_cond_pct']:.1f}",
+            ])
 
 
 if __name__ == "__main__":

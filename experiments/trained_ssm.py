@@ -64,6 +64,10 @@ def run(args: argparse.Namespace) -> None:
         {"desc": "oscillatory AR(6)", "ar_poles": 6, "max_r": 0.88},
     ]
 
+    if args.quick:
+        configs = configs[:1]
+
+    csv_rows = []
     for cfg in configs:
         ar_coeffs = make_ar_coeffs(cfg["ar_poles"], rng, max_radius=cfg["max_r"])
         u_seq = generate_ar_sequence(ar_coeffs, args.seq_len, noise_std=0.05, rng=rng)
@@ -118,6 +122,17 @@ def run(args: argparse.Namespace) -> None:
         rig = grid_certificate(margins, lipschitz_bound=L, method="resolvent")
         print(f"  Rigorous cert (best ref, N=512): certified={rig.certified}  "
               f"L={L:.3e}  pi*L/N={rig.criterion_value:.3e}")
+        csv_rows.append({
+            "task": cfg["desc"],
+            "final_loss": f"{final_loss:.6e}",
+            "converged": int(converged),
+            "spectral_radius": f"{summary['spectral_radius']:.6f}",
+            "schur_stable": int(summary["schur_stable"]),
+            "res_scalar_margin": f"{res_scalar.min_margin:.6e}",
+            "res_diag_margin": f"{res_diag.min_margin:.6e}",
+            "res_best_margin": f"{res_best.min_margin:.6e}",
+            "rigorous_cert": int(rig.certified),
+        })
 
         # Save margin plot
         theta = np.linspace(0, 2 * np.pi, 512, endpoint=False)
@@ -131,6 +146,14 @@ def run(args: argparse.Namespace) -> None:
             title=f"{cfg['desc']}  rho={summary['spectral_radius']:.4f}",
         )
 
+    import csv
+    with open(outdir / "summary.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["task","final_loss","converged","spectral_radius",
+                                               "schur_stable","res_scalar_margin","res_diag_margin",
+                                               "res_best_margin","rigorous_cert"])
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
     print(f"\nFigures saved to {outdir}/")
 
 
@@ -141,7 +164,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-iter", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--outdir", type=str, default="results/exp3")
-    return parser.parse_args()
+    parser.add_argument("--quick", action="store_true",
+                        help="Fast smoke: 1 config, 100 iterations")
+    args = parser.parse_args()
+    if args.quick:
+        args.n_iter = 100
+    return args
 
 
 if __name__ == "__main__":

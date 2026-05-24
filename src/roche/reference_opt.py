@@ -144,7 +144,8 @@ def optimise_dlr_reference(
     num_contour_points: int = 256,
     softmin_beta: float = 20.0,
     seed: int = 0,
-) -> tuple[ComplexMatrix, list[float]]:
+    init_lowrank_scale: float = 1e-2,
+) -> tuple[ComplexMatrix, list[float], dict]:
     """Gradient ascent on resolvent margin w.r.t. DLR reference A0 = diag(d0) + U @ V.H.
 
     A0 is guaranteed stable via a softplus stability penalty on its eigenvalues.
@@ -152,9 +153,19 @@ def optimise_dlr_reference(
     U, V free complex (n x rank); their contribution is scaled by a small factor
     to keep A0 close to diagonal and aid stability.
 
-    Returns (A0_matrix, margin_history).
+    Parameters
+    ----------
+    init_lowrank_scale:
+        Scale of random noise used to initialise U, V away from zero. Nonzero
+        initialisation breaks the gradient symmetry and allows the low-rank term
+        to learn.
+
+    Returns (A0_matrix, margin_history, diagnostics) where diagnostics contains:
+        spectral_radius_a0, lowrank_frobenius_norm, diag_norm,
+        final_sampled_margin, stability_penalty_active.
     """
     torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
     n = a.shape[0]
     a_t = torch.tensor(a, dtype=_DTYPE)
     points = _unit_circle(num_contour_points)
@@ -168,12 +179,16 @@ def optimise_dlr_reference(
     log_r_raw = torch.tensor(np.log(r0 / (1.0 - r0)), dtype=_RDTYPE, requires_grad=True)
     phi = torch.tensor(phi0, dtype=_RDTYPE, requires_grad=True)
 
-    # Low-rank part: U, V in R^{n x rank} real (separate re/im)
+    # Low-rank part: initialise with small nonzero noise to break symmetry
     scale = 0.1
-    u_re = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
-    u_im = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
-    v_re = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
-    v_im = torch.zeros(n, rank, dtype=_RDTYPE, requires_grad=True)
+    u_re_init = rng.standard_normal((n, rank)) * init_lowrank_scale
+    u_im_init = rng.standard_normal((n, rank)) * init_lowrank_scale
+    v_re_init = rng.standard_normal((n, rank)) * init_lowrank_scale
+    v_im_init = rng.standard_normal((n, rank)) * init_lowrank_scale
+    u_re = torch.tensor(u_re_init, dtype=_RDTYPE, requires_grad=True)
+    u_im = torch.tensor(u_im_init, dtype=_RDTYPE, requires_grad=True)
+    v_re = torch.tensor(v_re_init, dtype=_RDTYPE, requires_grad=True)
+    v_im = torch.tensor(v_im_init, dtype=_RDTYPE, requires_grad=True)
 
     params = [log_r_raw, phi, u_re, u_im, v_re, v_im]
     optimiser = torch.optim.Adam(params, lr=lr)
@@ -214,7 +229,24 @@ def optimise_dlr_reference(
         V = (v_re + 1j * v_im).to(_DTYPE) * scale
         A0 = torch.diag(d0) + U @ V.conj().T
 
-    return A0.numpy().astype(np.complex128), history
+        # Compute diagnostics
+        eigs_final = torch.linalg.eigvals(A0)
+        rho_final = float(torch.max(torch.abs(eigs_final)).item())
+        lr_matrix = (U @ V.conj().T)
+        lr_frob = float(torch.linalg.norm(lr_matrix, ord="fro").item())
+        diag_frob = float(torch.linalg.norm(torch.diag(d0), ord="fro").item())
+        final_margin = history[-1] if history else float("nan")
+        penalty_active = rho_final >= (1.0 - eps)
+
+    a0_np = A0.numpy().astype(np.complex128)
+    diagnostics = {
+        "spectral_radius_a0": rho_final,
+        "lowrank_frobenius_norm": lr_frob,
+        "diag_norm": diag_frob,
+        "final_sampled_margin": final_margin,
+        "stability_penalty_active": penalty_active,
+    }
+    return a0_np, history, diagnostics
 
 
 def compare_reference_methods(

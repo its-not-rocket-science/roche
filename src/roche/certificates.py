@@ -27,6 +27,7 @@ class GridCertificateResult:
     num_points: int
     criterion_value: float | None
     method: str
+    validation_level: str = "sampled_only"
 
 
 def unit_circle_grid(num_points: int, radius: float = 1.0) -> NDArray[np.complex128]:
@@ -92,6 +93,50 @@ def _determinant_margins_batched(
     p  = np.linalg.det(lhs_a)   # shape (K,)
     p0 = np.linalg.det(lhs_a0)  # shape (K,)
     return (np.abs(p0) - np.abs(p - p0)).astype(np.float64)
+
+
+def determinant_margins_log(
+    a: ComplexMatrix,
+    a0: ComplexMatrix,
+    points: NDArray[np.complex128],
+) -> tuple[FloatArray, NDArray[np.bool_]]:
+    """Determinant margins using log-magnitudes for numerical stability.
+
+    Uses np.linalg.slogdet to avoid overflow/underflow at large n.
+    Returns (margins, finite_mask) where finite_mask[k] is True when
+    both determinants are finite.  Entries where finite_mask is False
+    are set to -np.inf.
+
+    The margin is sign(p0) * (log|p0| - log|p - p0|); positive => certified.
+    Note: this is a sign-check margin, not the same scale as determinant_margins.
+    Use it to detect certified/not-certified, not to compare magnitudes.
+    """
+    import warnings
+    n = a.shape[0]
+    K = len(points)
+    identity = np.eye(n, dtype=np.complex128)
+    lhs_a  = points[:, None, None] * identity[None, :, :] - a[None, :, :]
+    lhs_a0 = points[:, None, None] * identity[None, :, :] - a0[None, :, :]
+    p  = np.linalg.det(lhs_a)
+    p0 = np.linalg.det(lhs_a0)
+    p_diff = p - p0
+
+    finite_mask = np.isfinite(p) & np.isfinite(p0) & np.isfinite(p_diff)
+    if not np.all(finite_mask):
+        warnings.warn(
+            f"determinant_margins_log: {(~finite_mask).sum()}/{K} contour points "
+            "produced non-finite determinants; results may be unreliable at this n.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    log_p0_mag = np.full(K, -np.inf)
+    log_diff_mag = np.full(K, np.inf)
+    log_p0_mag[finite_mask] = np.log(np.abs(p0[finite_mask]) + 1e-300)
+    log_diff_mag[finite_mask] = np.log(np.abs(p_diff[finite_mask]) + 1e-300)
+    margins = (log_p0_mag - log_diff_mag).astype(np.float64)
+    margins[~finite_mask] = -np.inf
+    return margins, finite_mask
 
 
 def resolvent_quantity(
@@ -181,6 +226,7 @@ def grid_certificate(
     margins: FloatArray,
     lipschitz_bound: float | None = None,
     method: str = "unknown",
+    lipschitz_analytic: bool = False,
 ) -> GridCertificateResult:
     """Apply the deterministic finite-grid contour criterion.
 
@@ -193,6 +239,13 @@ def grid_certificate(
     If no Lipschitz bound is provided, this returns a sampling-only result where
     `certified` simply means all sampled margins are positive. That is useful for
     experiments but is not a mathematical certificate for the continuum.
+
+    Parameters
+    ----------
+    lipschitz_analytic:
+        Set True when the Lipschitz bound was derived analytically (e.g. via
+        resolvent_lipschitz_bound_analytic_diagonal). Sets validation_level to
+        "analytic_lipschitz" rather than "numerical_lipschitz".
     """
     if margins.ndim != 1 or len(margins) < 4:
         raise ValueError("margins must be a one-dimensional array of length >= 4")
@@ -206,7 +259,9 @@ def grid_certificate(
             num_points=n,
             criterion_value=None,
             method=method,
+            validation_level="sampled_only",
         )
+    validation_level = "analytic_lipschitz" if lipschitz_analytic else "numerical_lipschitz"
     criterion = np.pi * float(lipschitz_bound) / n
     return GridCertificateResult(
         certified=min_margin > criterion,
@@ -215,6 +270,7 @@ def grid_certificate(
         num_points=n,
         criterion_value=criterion,
         method=method,
+        validation_level=validation_level,
     )
 
 
@@ -270,3 +326,28 @@ def resolvent_lipschitz_bound(
             if kappa * kappa > max_kappa_sq:
                 max_kappa_sq = kappa * kappa
     return max_kappa_sq * perturbation_norm
+
+
+def resolvent_lipschitz_bound_analytic_diagonal(
+    a: ComplexMatrix,
+    a0: ComplexMatrix,
+    ord: int = 2,
+) -> tuple[float, bool]:
+    """Analytic Lipschitz bound for diagonal A0.
+
+    For diagonal A0 = diag(d_i), on |z|=1:
+        ||(zI - A0)^{-1}||_2 = max_i 1/|z - d_i|
+    The supremum over |z|=1 is 1/(1 - max_i |d_i|) = 1/(1 - rho(A0)).
+    Therefore L <= kappa^2 * ||A0 - A|| with kappa = 1/(1-rho(A0)).
+
+    Returns (bound, is_analytic) where is_analytic=True when A0 is diagonal,
+    False if A0 is non-diagonal (falls back to numerical estimate).
+    """
+    if _is_diagonal(a0):
+        rho_a0 = float(np.max(np.abs(np.diag(a0))))
+        kappa = 1.0 / (1.0 - rho_a0)
+        perturbation_norm = float(norm(a0 - a, ord=ord))
+        return kappa * kappa * perturbation_norm, True
+    # Fall back to numerical estimate
+    points = unit_circle_grid(512)
+    return resolvent_lipschitz_bound(a, a0, points, ord=ord), False

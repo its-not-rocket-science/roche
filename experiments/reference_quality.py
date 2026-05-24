@@ -159,6 +159,20 @@ def run(args: argparse.Namespace) -> None:
     fig.savefig(outdir / "reference_opt_convergence.png", dpi=150)
     plt.close(fig)
 
+    import csv
+    with open(outdir / "summary.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["family","method","cert_pct","mean_margin","mean_time_ms"])
+        for kind in FAMILIES:
+            for method in METHODS:
+                rs = results[kind][method]
+                if not rs:
+                    continue
+                cert_pct = 100.0 * np.mean([r["certified"] for r in rs])
+                mean_m = np.mean([r["min_margin"] for r in rs])
+                mean_t = 1e3 * np.mean([r["wall_time"] for r in rs])
+                writer.writerow([kind, method, f"{cert_pct:.1f}", f"{mean_m:.6f}", f"{mean_t:.4f}"])
+
     print(f"\nFigures saved to {outdir}/")
 
 
@@ -169,7 +183,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-points", type=int, default=256)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--outdir", type=str, default="results/p2exp1")
-    return p.parse_args()
+    p.add_argument("--quick", action="store_true",
+                   help="Fast smoke: 3 instances, 64 contour points")
+    args = p.parse_args()
+    if args.quick:
+        args.m = 3
+        args.num_points = 64
+    return args
 
 
 if __name__ == "__main__":

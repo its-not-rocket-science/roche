@@ -250,10 +250,12 @@ Rouch\'e condition for this problem:
     of the complex plane is involved; the certificate is tight to the
     available information.
 
-  \item \textbf{Cheapness.}  Evaluating $Q_j$ on 500 real points costs one
-    polynomial evaluation per point.  The Rouch\'e condition requires
-    evaluating $Q_j$ on 200 complex contour points and computing a contour
-    centroid---strictly more work, with no payoff.
+  \item \textbf{Cheapness.}  The minimum of $Q_j$ on $[0,1]$ is computed
+    \emph{exactly} by finding the real roots of $Q_j'$ (a degree-$(d{-}1)$
+    polynomial) and evaluating $Q_j$ at the endpoints and any interior
+    critical points.  The Rouch\'e condition requires evaluating $Q_j$ on
+    200 complex contour points and computing a contour centroid---strictly
+    more work, with no payoff.
 
   \item \textbf{Absence of a second failure mode.}  The Rouch\'e condition
     adds a \emph{complex-excursion} failure: even when $\min_{[0,1]} Q_j

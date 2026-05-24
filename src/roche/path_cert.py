@@ -23,6 +23,27 @@ ComplexArray = NDArray[np.complex128]
 FloatArray = NDArray[np.float64]
 
 
+def exact_polynomial_minimum(
+    poly: np.poly1d,
+    interval: tuple[float, float] = (0.0, 1.0),
+) -> float:
+    """Exact minimum of a polynomial on a closed interval.
+
+    Evaluates at endpoints plus all real critical points (derivative roots)
+    that lie in the interior.  Returns the true minimum, not a grid estimate.
+    """
+    a, b = interval
+    candidates = [float(np.real(np.polyval(poly.coeffs, a))),
+                  float(np.real(np.polyval(poly.coeffs, b)))]
+    if poly.order >= 1:
+        dpoly = poly.deriv()
+        roots = np.roots(dpoly.coeffs)
+        for r in roots:
+            if abs(r.imag) < 1e-10 and a < r.real < b:
+                candidates.append(float(np.real(np.polyval(poly.coeffs, r.real))))
+    return float(np.min(candidates))
+
+
 @dataclass(frozen=True)
 class PathCertResult:
     method: str          # 'real_poly' | 'rouche' | 'dense'
@@ -51,15 +72,34 @@ def rectangular_contour(
 def certify_real(
     poly: np.poly1d,
     epsilon: float,
+) -> PathCertResult:
+    """Real certificate: exact min_{t in [0,1]} Q(t) > eps.
+
+    Uses derivative-root exact minimisation, not grid sampling.
+    """
+    min_q = exact_polynomial_minimum(poly, (0.0, 1.0))
+    margin = min_q - epsilon
+    return PathCertResult(
+        method="real_poly",
+        certified=margin > 0.0,
+        margin=margin,
+        approx_error=epsilon,
+        rouche_margin=None,
+    )
+
+
+def certify_real_grid(
+    poly: np.poly1d,
+    epsilon: float,
     n_check: int = 500,
 ) -> PathCertResult:
-    """Real certificate: min_{t in [0,1]} Q(t) > eps."""
+    """Grid-sampled real certificate (diagnostic only, not exact)."""
     t = np.linspace(0.0, 1.0, n_check)
     q_vals = np.real(np.polyval(poly.coeffs, t))
     min_q = float(np.min(q_vals))
     margin = min_q - epsilon
     return PathCertResult(
-        method="real_poly",
+        method="real_poly_grid",
         certified=margin > 0.0,
         margin=margin,
         approx_error=epsilon,

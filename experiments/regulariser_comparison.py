@@ -205,7 +205,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seq-len", type=int, default=500)
     p.add_argument("--seeds", type=int, default=5)
     p.add_argument("--outdir", type=str, default="results/p2exp2")
-    return p.parse_args()
+    p.add_argument("--quick", action="store_true",
+                   help="Fast smoke: 2 seeds, 20 epochs, seq_len=100")
+    args = p.parse_args()
+    if args.quick:
+        args.seeds = 2
+        args.n_epochs = 20
+        args.seq_len = 100
+    return args
 
 
 if __name__ == "__main__":

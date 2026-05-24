@@ -102,17 +102,17 @@ def make_path_margin_fn(model, x_a, x_b, scale: float = 1.0, pred_class: int = 0
 # Phase 2: method comparison
 # ---------------------------------------------------------------------------
 
-def run_phase2(model, X_test, y_test, rng: np.random.Generator) -> list[dict]:
-    """200 same-class pairs, 3 degrees x 3 methods."""
-    # Collect same-class pairs (class 0)
+def _run_phase2(model, X_test, y_test, rng: np.random.Generator,
+                n_paths: int, degrees: list) -> list[dict]:
+    """Same-class pairs x degrees x methods."""
     idx0 = np.where(y_test == 0)[0]
     pairs = []
-    while len(pairs) < N_PATHS:
+    while len(pairs) < n_paths:
         i, j = rng.choice(idx0, size=2, replace=False)
         pairs.append((X_test[i], X_test[j]))
 
     results = []
-    for deg in DEGREES:
+    for deg in degrees:
         print(f"  degree={deg}", flush=True)
         dense_cert = real_cert = rouche_cert = 0
         approx_errors = []
@@ -141,11 +141,11 @@ def run_phase2(model, X_test, y_test, rng: np.random.Generator) -> list[dict]:
 # Phase 3: scaling limits
 # ---------------------------------------------------------------------------
 
-def run_phase3(model, X_test, y_test, rng: np.random.Generator) -> list[dict]:
+def _run_phase3(model, X_test, y_test, rng: np.random.Generator, n_paths: int) -> list[dict]:
     """Fix degree=8, vary path scale."""
     idx0 = np.where(y_test == 0)[0]
     pairs = []
-    while len(pairs) < N_PATHS:
+    while len(pairs) < n_paths:
         i, j = rng.choice(idx0, size=2, replace=False)
         pairs.append((X_test[i], X_test[j]))
 
@@ -178,6 +178,20 @@ def run_phase3(model, X_test, y_test, rng: np.random.Generator) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    import argparse
+    import csv
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quick", action="store_true",
+                        help="Fast smoke: 5 paths, deg=4 only, 10 epochs")
+    parser.add_argument("--outdir", type=str, default=str(RESULTS_DIR))
+    args = parser.parse_args()
+
+    n_paths = 5 if args.quick else N_PATHS
+    degrees = [4] if args.quick else DEGREES
+    n_epochs = 10 if args.quick else N_EPOCHS
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
     rng = np.random.default_rng(RNG_SEED)
 
     print("Generating two-moons data...", flush=True)
@@ -185,7 +199,7 @@ def main() -> None:
     X_test,  y_test  = make_two_moons(500,     rng)
 
     print("Training MLP...", flush=True)
-    model = train_mlp(X_train, y_train, N_HIDDEN, N_EPOCHS, LR, rng)
+    model = train_mlp(X_train, y_train, N_HIDDEN, n_epochs, LR, rng)
 
     import torch
     with torch.no_grad():
@@ -195,10 +209,10 @@ def main() -> None:
     print(f"Test accuracy: {acc*100:.1f}%", flush=True)
 
     print("\nPhase 2: method comparison...", flush=True)
-    p2_results = run_phase2(model, X_test, y_test, rng)
+    p2_results = _run_phase2(model, X_test, y_test, rng, n_paths, degrees)
 
     print("\nPhase 3: scaling limits...", flush=True)
-    p3_results = run_phase3(model, X_test, y_test, rng)
+    p3_results = _run_phase3(model, X_test, y_test, rng, n_paths)
 
     # Print tables
     print()
@@ -219,64 +233,79 @@ def main() -> None:
             f"  {r['rouche_cert%']:>8.1f}  {r['mean_approx_error']:>10.4e}"
         )
 
-    # Figures
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    # CSV output
+    with open(outdir / "summary_phase2.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["degree","dense_pct","real_pct","rouche_pct","mean_approx_error"])
+        for r in p2_results:
+            writer.writerow([r["degree"], f"{r['dense_cert%']:.1f}", f"{r['real_cert%']:.1f}",
+                             f"{r['rouche_cert%']:.1f}", f"{r['mean_approx_error']:.4e}"])
+    with open(outdir / "summary_phase3.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["scale","real_pct","rouche_pct","mean_approx_error"])
+        for r in p3_results:
+            writer.writerow([r["scale"], f"{r['real_cert%']:.1f}",
+                             f"{r['rouche_cert%']:.1f}", f"{r['mean_approx_error']:.4e}"])
 
-    ax = axes[0]
-    degs = [r["degree"] for r in p2_results]
-    real_rates = [r["real_cert%"] for r in p2_results]
-    rouche_rates = [r["rouche_cert%"] for r in p2_results]
-    dense_rates = [r["dense_cert%"] for r in p2_results]
-    x = np.arange(len(degs))
-    ax.bar(x - 0.25, dense_rates,  width=0.25, label="Dense (truth)", alpha=0.8)
-    ax.bar(x,        real_rates,   width=0.25, label="Real poly",      alpha=0.8)
-    ax.bar(x + 0.25, rouche_rates, width=0.25, label="Rouché",         alpha=0.8)
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"deg={d}" for d in degs])
-    ax.set_ylabel("cert %")
-    ax.set_title("Two-moons: method comparison")
-    ax.legend()
-    ax.set_ylim(0, 110)
+    if not args.quick:
+        # Figures
+        fig, axes = plt.subplots(1, 2, figsize=(11, 4))
 
-    ax2 = axes[1]
-    scales = [r["scale"] for r in p3_results]
-    real_s = [r["real_cert%"] for r in p3_results]
-    rouche_s = [r["rouche_cert%"] for r in p3_results]
-    eps_s = [r["mean_approx_error"] for r in p3_results]
-    ax2.plot(scales, real_s,   "o-", label="Real poly cert%")
-    ax2.plot(scales, rouche_s, "s-", label="Rouché cert%")
-    ax2.set_xlabel("path scale")
-    ax2.set_ylabel("cert %")
-    ax2.set_title("Scaling limits (degree=8)")
-    ax2_r = ax2.twinx()
-    ax2_r.plot(scales, eps_s, "^--", color="gray", label="approx error")
-    ax2_r.set_ylabel("mean approx error")
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2_r.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=8)
+        ax = axes[0]
+        degs = [r["degree"] for r in p2_results]
+        real_rates = [r["real_cert%"] for r in p2_results]
+        rouche_rates = [r["rouche_cert%"] for r in p2_results]
+        dense_rates = [r["dense_cert%"] for r in p2_results]
+        x = np.arange(len(degs))
+        ax.bar(x - 0.25, dense_rates,  width=0.25, label="Dense (truth)", alpha=0.8)
+        ax.bar(x,        real_rates,   width=0.25, label="Real poly",      alpha=0.8)
+        ax.bar(x + 0.25, rouche_rates, width=0.25, label="Rouché",         alpha=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"deg={d}" for d in degs])
+        ax.set_ylabel("cert %")
+        ax.set_title("Two-moons: method comparison")
+        ax.legend()
+        ax.set_ylim(0, 110)
 
-    fig.tight_layout()
-    fig.savefig(RESULTS_DIR / "two_moons_certs.pdf", bbox_inches="tight")
-    plt.close(fig)
+        ax2 = axes[1]
+        scales = [r["scale"] for r in p3_results]
+        real_s = [r["real_cert%"] for r in p3_results]
+        rouche_s = [r["rouche_cert%"] for r in p3_results]
+        eps_s = [r["mean_approx_error"] for r in p3_results]
+        ax2.plot(scales, real_s,   "o-", label="Real poly cert%")
+        ax2.plot(scales, rouche_s, "s-", label="Rouché cert%")
+        ax2.set_xlabel("path scale")
+        ax2.set_ylabel("cert %")
+        ax2.set_title("Scaling limits (degree=8)")
+        ax2_r = ax2.twinx()
+        ax2_r.plot(scales, eps_s, "^--", color="gray", label="approx error")
+        ax2_r.set_ylabel("mean approx error")
+        lines1, labels1 = ax2.get_legend_handles_labels()
+        lines2, labels2 = ax2_r.get_legend_handles_labels()
+        ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=8)
 
-    # Decision boundary plot
-    fig3, ax3 = plt.subplots(figsize=(5, 4))
-    xx, yy = np.meshgrid(np.linspace(-2.5, 3.5, 200), np.linspace(-1.5, 2.5, 200))
-    import torch
-    grid = torch.tensor(np.c_[xx.ravel(), yy.ravel()], dtype=torch.float32)
-    with torch.no_grad():
-        logits_grid = model(grid).numpy()
-    Z = (logits_grid[:, 0] - logits_grid[:, 1]).reshape(xx.shape)
-    ax3.contourf(xx, yy, Z, levels=[-10, 0, 10], colors=["#FFDDC1", "#C1E1FF"], alpha=0.5)
-    ax3.contour(xx, yy, Z, levels=[0], colors="k", linewidths=1)
-    ax3.scatter(X_test[y_test == 0, 0], X_test[y_test == 0, 1], s=5, c="blue", alpha=0.4)
-    ax3.scatter(X_test[y_test == 1, 0], X_test[y_test == 1, 1], s=5, c="red",  alpha=0.4)
-    ax3.set_title("Two-moons decision boundary")
-    fig3.tight_layout()
-    fig3.savefig(RESULTS_DIR / "decision_boundary.pdf", bbox_inches="tight")
-    plt.close(fig3)
+        fig.tight_layout()
+        fig.savefig(outdir / "two_moons_certs.pdf", bbox_inches="tight")
+        plt.close(fig)
 
-    print(f"\nFigures saved to {RESULTS_DIR}/")
+        # Decision boundary plot
+        fig3, ax3 = plt.subplots(figsize=(5, 4))
+        xx, yy = np.meshgrid(np.linspace(-2.5, 3.5, 200), np.linspace(-1.5, 2.5, 200))
+        import torch
+        grid = torch.tensor(np.c_[xx.ravel(), yy.ravel()], dtype=torch.float32)
+        with torch.no_grad():
+            logits_grid = model(grid).numpy()
+        Z = (logits_grid[:, 0] - logits_grid[:, 1]).reshape(xx.shape)
+        ax3.contourf(xx, yy, Z, levels=[-10, 0, 10], colors=["#FFDDC1", "#C1E1FF"], alpha=0.5)
+        ax3.contour(xx, yy, Z, levels=[0], colors="k", linewidths=1)
+        ax3.scatter(X_test[y_test == 0, 0], X_test[y_test == 0, 1], s=5, c="blue", alpha=0.4)
+        ax3.scatter(X_test[y_test == 1, 0], X_test[y_test == 1, 1], s=5, c="red",  alpha=0.4)
+        ax3.set_title("Two-moons decision boundary")
+        fig3.tight_layout()
+        fig3.savefig(outdir / "decision_boundary.pdf", bbox_inches="tight")
+        plt.close(fig3)
+
+    print(f"\nFigures saved to {outdir}/")
 
 
 if __name__ == "__main__":
