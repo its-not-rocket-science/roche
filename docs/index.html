@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roche — Contour Certificates for Stable Learned State-Space Models</title>
+<meta name="description" content="Reference-optimised contour certificates for stable learned state-space models. Rouché-type perturbation analysis meets machine learning.">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Roche — Contour Certificates for Learned Dynamics">
+<meta property="og:description" content="Reference-optimised Rouché-type contour certificates and perturbation analysis for Schur-stable learned state-space models.">
+<meta property="og:image" content="https://raw.githubusercontent.com/its-not-rocket-science/roche/main/roche-social-media-preview.jpg">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:url" content="https://its-not-rocket-science.github.io/roche/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Schleiferdyne Systems">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Roche — Contour Certificates for Learned Dynamics">
+<meta name="twitter:description" content="Reference-optimised Rouché-type contour certificates for Schur-stable learned state-space models.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/its-not-rocket-science/roche/main/roche-social-media-preview.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --parchment:  #f0e8cc;
+  --parchment2: #e8ddb8;
+  --green:      #1a3d2b;
+  --green-mid:  #2a5a3e;
+  --gold:       #c9a227;
+  --gold-dim:   #8a6e18;
+  --crimson:    #8b1a1a;
+  --teal:       #0d2e2e;
+  --ink:        #1a1208;
+  --ink-mid:    #2e2010;
+  --muted:      #5a4a30;
+  --serif:      'Crimson Text', Georgia, serif;
+  --display:    'IM Fell English', Georgia, serif;
+  --mono:       'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 17px; scroll-behavior: smooth; }
+body { background: var(--parchment); color: var(--ink); font-family: var(--serif); line-height: 1.7; }
+
+.page-frame {
+  min-height: 100vh;
+  border: 6px solid var(--teal);
+  outline: 2px solid var(--gold);
+  outline-offset: -10px;
+}
+
+.hero {
+  background: var(--teal);
+  padding: 3rem 2rem 2.5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 70% 50%, rgba(201,162,39,0.1) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.hero-quote {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: .9rem;
+  color: var(--gold);
+  margin-bottom: 1.25rem;
+  letter-spacing: .05em;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  color: var(--parchment);
+  letter-spacing: .06em;
+  line-height: 1;
+  margin-bottom: .5rem;
+}
+
+.hero-sub {
+  font-size: 1.1rem;
+  color: var(--parchment2);
+  font-style: italic;
+  margin-bottom: .5rem;
+}
+
+.hero-theorem {
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--gold);
+  background: rgba(0,0,0,.25);
+  display: inline-block;
+  padding: .4rem 1rem;
+  border-radius: 3px;
+  margin: .85rem auto 1.75rem;
+  letter-spacing: .06em;
+}
+
+.hero-divider {
+  width: 200px; height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold), transparent);
+  margin: 0 auto 1rem;
+}
+
+.hero-desc {
+  font-size: 1rem;
+  color: rgba(240,232,204,.8);
+  max-width: 540px;
+  margin: 0 auto;
+  font-style: italic;
+}
+
+/* ── Nav ── */
+.nav-strip {
+  background: var(--parchment2);
+  border-top: 2px solid var(--gold-dim);
+  border-bottom: 2px solid var(--gold-dim);
+  padding: .7rem 2rem;
+  display: flex; align-items: center; justify-content: center;
+  gap: 2rem; flex-wrap: wrap;
+}
+
+.nav-strip a {
+  font-family: var(--mono);
+  font-size: .72rem;
+  color: var(--green);
+  text-decoration: none;
+  letter-spacing: .05em;
+  border-bottom: 1px solid transparent;
+  transition: border-color .15s, color .15s;
+}
+
+.nav-strip a:hover { color: var(--crimson); border-color: var(--crimson); }
+
+main { max-width: 900px; margin: 0 auto; padding: 2.5rem 2rem 3rem; }
+
+.section { margin-bottom: 2.5rem; }
+
+.section-title {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  color: var(--green);
+  margin-bottom: .75rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+
+.section-title::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(to right, var(--gold-dim), transparent);
+}
+
+/* ── Theorem box ── */
+.theorem-box {
+  background: var(--parchment2);
+  border: 1px solid var(--gold-dim);
+  border-left: 4px solid var(--gold);
+  border-radius: 0 4px 4px 0;
+  padding: 1rem 1.25rem;
+  margin-top: .85rem;
+  font-style: italic;
+}
+
+.theorem-box .label {
+  font-family: var(--display);
+  font-style: normal;
+  font-size: .8rem;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: .4rem;
+}
+
+/* ── Concept grid ── */
+.concept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin-top: .85rem;
+}
+
+.concept-card {
+  background: var(--parchment2);
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+  padding: .9rem 1rem;
+}
+
+.concept-card h3 {
+  font-family: var(--display);
+  font-size: 1rem;
+  color: var(--green);
+  margin-bottom: .3rem;
+}
+
+.concept-card p { font-size: .875rem; color: var(--muted); line-height: 1.55; }
+
+pre {
+  background: var(--ink);
+  color: #d4c99a;
+  font-family: var(--mono);
+  font-size: .73rem;
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  border: 1px solid var(--gold-dim);
+  margin-top: .85rem;
+}
+
+.cta-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; }
+
+.btn {
+  font-family: var(--mono);
+  font-size: .78rem;
+  padding: .5rem 1.25rem;
+  border-radius: 3px;
+  text-decoration: none;
+  letter-spacing: .05em;
+  transition: background .15s, color .15s;
+  border: none; cursor: pointer;
+}
+
+.btn-primary { background: var(--green); color: var(--parchment); }
+.btn-primary:hover { background: var(--green-mid); }
+.btn-secondary { background: transparent; color: var(--green); border: 1px solid var(--green); }
+.btn-secondary:hover { background: var(--green); color: var(--parchment); }
+
+footer {
+  background: var(--teal);
+  color: var(--parchment2);
+  text-align: center;
+  padding: 1.25rem 2rem;
+  font-family: var(--mono);
+  font-size: .7rem;
+  letter-spacing: .05em;
+}
+
+footer a { color: var(--gold); text-decoration: none; }
+
+@media (max-width: 600px) {
+  main, .nav-strip { padding-left: 1rem; padding-right: 1rem; }
+  .hero { padding: 2rem 1rem 1.75rem; }
+}
+</style>
+</head>
+<body>
+<div class="page-frame">
+
+<header class="hero">
+  <p class="hero-quote">"La théorie des fonctions est la reine des mathématiques." — Eugène Rouché</p>
+  <h1>Roche</h1>
+  <p class="hero-sub">Rouché, complex analysis, and elegant mathematics</p>
+  <div class="hero-theorem">|y(z)| &lt; |f(z)| on C &nbsp;⟹&nbsp; f and f+y have the same zeros in C</div>
+  <div class="hero-divider"></div>
+  <p class="hero-desc">Reference-optimised contour certificates for stable learned state-space models. Rouché-type perturbation analysis applied to the problem of certifying Schur stability in learned dynamics.</p>
+</header>
+
+<nav class="nav-strip" aria-label="Quick links">
+  <a href="https://github.com/its-not-rocket-science/roche">GitHub</a>
+  <a href="https://github.com/its-not-rocket-science/roche#readme">README</a>
+  <a href="https://github.com/its-not-rocket-science/roche/issues">Issues</a>
+  <a href="https://github.com/its-not-rocket-science/its-not-rocket-science">← Profile</a>
+</nav>
+
+<main>
+
+  <section class="section">
+    <h2 class="section-title">The problem</h2>
+    <p>Learned state-space models — SSMs, linear recurrences, Mamba-style architectures — must satisfy Schur stability conditions to behave predictably over long sequences. Standard training does not guarantee this. Roche provides <em>contour certificates</em>: formal proofs, derived from Rouché's theorem, that a learned model's eigenvalues remain within the unit disc under bounded perturbation.</p>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Rouché's theorem</h2>
+    <div class="theorem-box">
+      <div class="label">Theorem (Rouché, 1862)</div>
+      <p>If <em>f</em> and <em>g</em> are analytic in and on a closed contour C, and |g(z)| &lt; |f(z)| on C, then <em>f</em> and <em>f + g</em> have the same number of zeros inside C (counted with multiplicity).</p>
+    </div>
+    <p style="margin-top:.85rem">Applied to learned dynamics: given a nominal stable model <em>f</em> and a perturbation <em>g</em> (the deviation introduced by training), Roche certifies that the perturbed model <em>f + g</em> retains the same zero-count inside the unit circle — that is, remains Schur-stable.</p>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">What it provides</h2>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <h3>Contour certificates</h3>
+        <p>Automated Rouché-type certificates bounding the eigenvalue deviation of a learned model from a stable reference.</p>
+      </div>
+      <div class="concept-card">
+        <h3>Reference optimisation</h3>
+        <p>Joint optimisation of the reference model and perturbation bound to maximise certificate tightness.</p>
+      </div>
+      <div class="concept-card">
+        <h3>Stability experiments</h3>
+        <p>Reproducible robustness experiments on standard SSM architectures under varying perturbation regimes.</p>
+      </div>
+      <div class="concept-card">
+        <h3>Schur stability checks</h3>
+        <p>Fast, differentiable Schur stability verification for use as a training constraint or post-hoc check.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Quick start</h2>
+<pre>pip install roche
+
+from roche import ContourCertifier
+
+certifier = ContourCertifier(reference_model=stable_ssm)
+cert = certifier.certify(learned_model, perturbation_bound=0.05)
+
+print(cert.is_valid)        # True if Rouché condition satisfied
+print(cert.margin)          # slack: how much further perturbation is tolerable
+print(cert.certificate)     # formal Rouché certificate object</pre>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/its-not-rocket-science/roche">View on GitHub</a>
+      <a class="btn btn-secondary" href="https://github.com/its-not-rocket-science/roche#readme">Read the docs</a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Roche · Named for Eugène Rouché (1832–1910) · MIT licence · <a href="https://github.com/its-not-rocket-science/roche">its-not-rocket-science/roche</a> · <a href="https://github.com/its-not-rocket-science">Schleiferdyne Systems</a></p>
+</footer>
+
+</div>
+</body>
+</html>
